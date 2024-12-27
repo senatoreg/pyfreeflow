@@ -1,0 +1,13 @@
+aiofiles
+aiohttp
+jinja2
+networkx
+pydot
+pyyaml
+tomli-w
+psycopg
+ldap3
+pyparsing
+pyjwt
+lupa
+uvloop
