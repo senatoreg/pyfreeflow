@@ -84,14 +84,13 @@ class PgSqlExecutor(FreeFlowExt):
 
     CONNECTION_STRING = "postgresql://{userspec}{hostspec}{dbspec}{paramspec}"
 
-    def __init__(self, name, username=None, password=None, host=None,
-                 port=None, dbname=None, param={}, statement=None,
-                 max_connections=4):
+    def __init__(self, name, username=None, password=None, host=[],
+                 dbname=None, param={}, statement=None, max_connections=4):
         super().__init__(name)
 
         userspec = self._conninfo_helper(username, password, sep=":")
 
-        hostspec = self._conninfo_helper(host, port, sep=":")
+        hostspec = ",".join(host)
         hostspec = "@" + hostspec if len(hostspec) > 0 else ""
 
         dbspec = self._conninfo_helper(None, dbname, sep="/")
