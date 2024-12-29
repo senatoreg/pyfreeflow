@@ -12,9 +12,10 @@ if system() == "Linux":
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
-def json_formatter(x, f):
-    if f:
-        json.dump(x, f)
+def json_formatter(x, path):
+    if path:
+        with open(path, "w") as f:
+            json.dump(x, f)
     else:
         print(json.dumps(x))
 
@@ -28,12 +29,13 @@ def _str_presenter(dumper, data):
     return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
 
-def yaml_formatter(x, f):
+def yaml_formatter(x, path):
     yaml.add_representer(str, _str_presenter)
     yaml.representer.SafeRepresenter.add_representer(str, _str_presenter)
-    if f:
-        yaml.dump(
-            x, f, default_flow_style=False, allow_unicode=True)
+    if path:
+        with open(path, "w") as f:
+            yaml.dump(
+                x, f, default_flow_style=False, allow_unicode=True)
     else:
         print(yaml.dump(
             x, default_flow_style=False, allow_unicode=True))
