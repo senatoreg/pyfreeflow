@@ -41,7 +41,7 @@ class DurationParser():
     HOURS = pp.Opt(pp.Group(INTEGER + "h"))
     DAYS = pp.Opt(pp.Group(INTEGER + "d"))
     WEEKS = pp.Opt(pp.Group(INTEGER + "w"))
-    YEARS = pp.Opt(pp.Group(INTEGER + "w"))
+    YEARS = pp.Opt(pp.Group(INTEGER + "y"))
 
     PARSER = YEARS + WEEKS + DAYS + HOURS + MINUTES + SECONDS
 
