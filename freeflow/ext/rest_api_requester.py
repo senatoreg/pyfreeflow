@@ -27,8 +27,8 @@ class RestApiRequesterV1_0(FreeFlowExt):
 
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
                  sslenabled=True, insecure=False, cafile=None, capath=None,
-                 cadata=None):
-        super().__init__(name)
+                 cadata=None, max_tasks=4):
+        super().__init__(name, max_tasks=max_tasks)
 
         self._url = url
         self._timeout = timeout

@@ -15,8 +15,8 @@ class AnyFileOperator(FreeFlowExt):
     __typename__ = __ANY_TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name, binary=False):
-        super().__init__(name)
+    def __init__(self, name, max_tasks=4, binary=False):
+        super().__init__(name, max_tasks=max_tasks)
 
         self._mode = "b" if binary else ""
 
@@ -61,8 +61,8 @@ class JsonFileOperator(FreeFlowExt):
     __typename__ = __JSON_TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name):
-        super().__init__(name)
+    def __init__(self, name, max_tasks=4):
+        super().__init__(name, max_tasks=max_tasks)
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))
@@ -109,8 +109,8 @@ class YamlFileOperator(FreeFlowExt):
     __typename__ = __YAML_TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name):
-        super().__init__(name)
+    def __init__(self, name, max_tasks=4):
+        super().__init__(name, max_tasks=max_tasks)
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))
@@ -161,8 +161,8 @@ if version_info.major > 3 or (version_info.major == 3 and
         __typename__ = __TOML_TYPENAME__
         __version__ = "1.0"
 
-        def __init__(self, name):
-            super().__init__(name)
+        def __init__(self, name, max_tasks=4):
+            super().__init__(name, max_tasks=max_tasks)
 
             self._logger = logging.getLogger(
                 ".".join([__name__, self.__typename__, self._name]))

@@ -31,8 +31,8 @@ class JwtOperatorV1_0(FreeFlowExt):
     def __init__(self, name, pubkey_files, privkey_files, algorithms=["HS256"],
                  headers={}, verify_sign=True, verify_exp=True,
                  required_claims=[], duration=None, not_before=None,
-                 issuer=None):
-        super().__init__(name)
+                 issuer=None, max_tasks=4):
+        super().__init__(name, max_tasks=max_tasks)
 
         self._algorithms = algorithms
 
@@ -125,8 +125,8 @@ class JwtOperatorV1_0(FreeFlowExt):
 
             if not hdr_only:
                 body = jwt.decode(token, key,
-                                     algorithms=self._algorithms,
-                                     options=self._options)
+                                  algorithms=self._algorithms,
+                                  options=self._options)
             else:
                 body = None
 

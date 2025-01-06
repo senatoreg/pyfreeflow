@@ -19,8 +19,8 @@ class SleepOperatorV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name, sleep=5):
-        super().__init__(name)
+    def __init__(self, name, sleep=5, max_tasks=4):
+        super().__init__(name, max_tasks=max_tasks)
         self._sleep = sleep
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
@@ -37,8 +37,8 @@ class RandomSleepOperatorV1_0(FreeFlowExt):
     __typename__ = "Random" + __TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name, sleep_min=5, sleep_max=10):
-        super().__init__(name)
+    def __init__(self, name, sleep_min=5, sleep_max=10, max_tasks=4):
+        super().__init__(name, max_tasks=max_tasks)
         self._sleep_min = sleep_min
         self._sleep_max = sleep_max
 

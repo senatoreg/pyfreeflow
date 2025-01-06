@@ -30,8 +30,9 @@ class DataTransformerV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name, transformer="", lua_func=[], force=False):
-        super().__init__(name)
+    def __init__(self, name, transformer="", lua_func=[],
+                 force=False, max_tasks=4):
+        super().__init__(name, max_tasks=max_tasks)
         self._force = force
         self._env = self._create_safe_lua_env()
 
