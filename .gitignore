@@ -1,1 +1,3 @@
+dist/
+freeflow.egg-info/
 **/*.pyc
