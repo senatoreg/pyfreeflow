@@ -39,10 +39,12 @@ class AnyFileOperator(FreeFlowExt):
 
     async def _write(self, path, raw):
         if self._mode == "b" and isinstance(raw, str):
-            raw = raw.enode()
+            raw_ = raw.encode()
+        else:
+            raw_ = raw
         try:
             async with aiofiles.open(path, "w" + self._mode) as f:
-                await f.write(raw)
+                await f.write(raw_)
                 return raw, 0
         except Exception as ex:
             self._logger.error("Cannot write json file '{}' {}".format(
