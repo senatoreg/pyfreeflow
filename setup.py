@@ -7,7 +7,7 @@ print(required_packages)
 
 setup(
     name="freeflow",
-    version="0.1.0",
+    version="0.1.2",
     author="Giovanni Senatore",
     author_email="",
     description="Async service toolchain",
