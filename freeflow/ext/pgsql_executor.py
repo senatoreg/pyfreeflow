@@ -105,6 +105,7 @@ class PgSqlExecutor(FreeFlowExt):
             userspec=userspec, hostspec=hostspec, dbspec=dbspec,
             paramspec=paramspec)
         self._stm = statement
+        assert (self._stm is not None)
 
         ConnectionPool.register(self._name, self._conninfo,
                                 max_size=max_connections)
