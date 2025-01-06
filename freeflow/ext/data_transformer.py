@@ -1,7 +1,7 @@
 from .types import FreeFlowExt
 import logging
 import datetime as dt
-from ..utils import deepupdate
+from ..utils import deepupdate, DurationParser
 
 try:
     import lupa.luajit21 as lupa
@@ -74,13 +74,56 @@ class DataTransformerV1_0(FreeFlowExt):
               end
             end
 
+            if not table.find_value then
+              function table.find_key(t, key)
+                for k, v in pairs(t) do
+                  if k == key then
+                    return v
+                  end
+                end
+                return nil
+              end
+            end
+
+            if not table.find_key then
+              function table.find_key(t, value)
+                for k, v in pairs(t) do
+                  if v == value then
+                    return k
+                  end
+                end
+                return nil
+              end
+            end
+
             if not string.split then
               function string.split(s, pattern)
-                local p = pattern or "%S+"
                 local t = {}
-                for m in string.gmatch(s, p) do
-                  table.insert(t, m)
+
+                -- Se non è specificato un pattern, usa il default per le
+                -- parole
+                if not pattern then
+                  for m in string.gmatch(s, "%S+") do
+                    table.insert(t, m)
+                  end
+                  return t
                 end
+
+                -- Se il pattern è un singolo carattere (non regex),
+                -- usa la logica del separatore
+                if #pattern == 1 and pattern:match("^[%w%p%s]$") then
+                  for m in string.gmatch(s, "([^" .. pattern:gsub("[%(%)%.%+%-%*%?%[%]%^%$%%]", "%%%1") .. "]+)") do
+                    if m ~= "" then  -- evita stringhe vuote
+                      table.insert(t, m)
+                    end
+                  end
+                else
+                  -- Per pattern regex complessi, usa direttamente il pattern
+                  for m in string.gmatch(s, pattern) do
+                    table.insert(t, m)
+                  end
+                end
+
                 return t
               end
             end
@@ -97,6 +140,8 @@ class DataTransformerV1_0(FreeFlowExt):
               math = math,
               table = table,
               print = print,
+              lookup_object_by_key = lookup_object_by_key,
+              NIL = setmetatable({},{__tostring=function() return "nil" end}),
             }
 
             function eval_safe(code)
@@ -115,16 +160,17 @@ class DataTransformerV1_0(FreeFlowExt):
     def _dt_now_ts(self):
         return int(dt.datetime.now(dt.UTC).timestamp())
 
-    def _dt_delta_ts(self, days=0, seconds=0, microseconds=0, milliseconds=0,
-                     minutes=0, hours=0, weeks=0):
-        return int(dt.timedelta(days=days, seconds=seconds,
-                                microseconds=microseconds,
-                                milliseconds=milliseconds,
-                                minutes=minutes, hours=hours,
-                                weeks=weeks).total_seconds())
+    def _dt_delta_ts(self, duration):
+        return DurationParser.parse(duration)
+
+    def _lua_nil_to_none(self, x):
+        return str(x) == "nil"
 
     def _lua_to_py(self, a):
         if lupa.lua_type(a) == "table":
+            if self._lua_nil_to_none(a):
+                return None
+
             if len(a) == 0:
                 return {k: self._lua_to_py(v) for k, v in a.items()}
             elif all([isinstance(x, int) for x in a.keys()]):
