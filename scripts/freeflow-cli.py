@@ -47,7 +47,7 @@ OUTPUT_FORMATTER = {
 }
 
 
-async def main(argv):
+async def cli(argv):
     argparser = argparse.ArgumentParser("freeflow-cli")
 
     argparser.add_argument("--config", "-c", dest="config", type=str,
@@ -78,5 +78,9 @@ async def main(argv):
     return output[1]
 
 
+def main(argv):
+    return asyncio.run(cli(argv))
+
+
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main(sys.argv[1:])))
+    sys.exit(main(sys.argv[1:]))
