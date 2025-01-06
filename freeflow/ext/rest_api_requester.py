@@ -1,5 +1,7 @@
 from .types import FreeFlowExt
 import aiohttp
+import yarl
+import multidict
 import json
 import ssl
 import asyncio
@@ -87,6 +89,13 @@ class RestApiRequesterV1_0(FreeFlowExt):
     def __del__(self):
         asyncio_run(self._close(), force=True)
 
+    def _multidict_to_dict(self, x):
+        if isinstance(x, yarl.URL):
+            return str(x)
+        elif isinstance(x, multidict._multidict.CIMultiDictProxy):
+            return dict(x)
+        return x
+
     def _prepare_request_p(self, x):
         return {k: str(v) for k, v in x.items()} if x is not None else x
 
@@ -102,7 +111,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 if resp.status >= 400:
                     self._logger.error(f"'{url}' response code {resp.status}")
                     return (
-                        {"headers": {}, "body": {}}, 102)
+                        {"req": {}, "headers": {}, "body": {}}, 102)
 
                 raw = await resp.read()
 
@@ -110,17 +119,19 @@ class RestApiRequesterV1_0(FreeFlowExt):
                     body = json.loads(raw.decode("utf-8"))
                 except json.JSONDecodeError:
                     body = raw.decode("utf-8")  # oppure tenere i bytes
+            req_info = {k: self._multidict_to_dict(v)
+                        for k, v in dict(resp._request_info._asdict()).items()}
             return (
-                {"headers": dict(resp.headers), "body": body}, 0)
+                {"req": req_info, "headers": dict(resp.headers), "body": body}, 0)
 
         except aiohttp.ClientError as ex:
             self._logger.error("aiohttp request error %s", ex)
             return (
-                {"headers": {}, "body": {}}, 101)
+                {"req": {}, "headers": {}, "body": {}}, 101)
         except asyncio.exceptions.TimeoutError as ex:
             self._logger.error("aiohttp timeout on %s error %s", url, ex)
             return (
-                {"headers": {}, "body": {}}, 104)
+                {"req": {}, "headers": {}, "body": {}}, 104)
 
     async def _do_get(self, state, data):
         headers = self._headers | data.get("headers", {})
