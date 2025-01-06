@@ -1,6 +1,5 @@
 aiofiles
 aiohttp
-jinja2
 networkx
 pydot
 pyyaml
@@ -11,3 +10,4 @@ pyparsing
 pyjwt
 lupa
 uvloop
+cryptography
