@@ -1,7 +1,7 @@
 import importlib
 import logging
-import freeflow.ext
-import freeflow.pipeline
+import pyfreeflow.ext
+import pyfreeflow.pipeline
 from sys import version_info
 
 

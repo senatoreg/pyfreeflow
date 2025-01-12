@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import sys
 import argparse
-import freeflow
+import pyfreeflow
 import json
 import yaml
 import asyncio
@@ -48,10 +48,10 @@ OUTPUT_FORMATTER = {
 
 
 async def cli(argv):
-    argparser = argparse.ArgumentParser("freeflow-cli")
+    argparser = argparse.ArgumentParser("pyfreeflow-cli")
 
     argparser.add_argument("--config", "-c", dest="config", type=str,
-                           action="store", default="freeflow.yaml",
+                           action="store", default="pyfreeflow.yaml",
                            required=False, help="Pipeline configuration file")
     argparser.add_argument("--output", "-o", dest="output", type=str,
                            action="store",
@@ -67,10 +67,10 @@ async def cli(argv):
         config = yaml.safe_load(f)
 
     for ext in config.get("ext", []):
-        freeflow.load_extension(ext)
+        pyfreeflow.load_extension(ext)
 
     assert ("pipeline" in config.keys())
-    pipe = freeflow.pipeline.Pipeline(**config.get("pipeline"))
+    pipe = pyfreeflow.pipeline.Pipeline(**config.get("pipeline"))
     output = await pipe.run(config.get("args", {}))
 
     OUTPUT_FORMATTER[args.fmt](output[0], args.output)
