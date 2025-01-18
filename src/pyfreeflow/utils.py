@@ -64,4 +64,4 @@ class DurationParser():
             k, v = cls.OP[unit](val)
             delta[k] = delta.get(k, 0) + v
 
-        return int(dt.timedelta(**delta).total_seconds())
+        return dt.timedelta(**delta) / dt.timedelta(microseconds=1)
