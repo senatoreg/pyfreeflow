@@ -6,7 +6,7 @@ import json
 import ssl
 import asyncio
 import logging
-from ..utils import asyncio_run
+from ..utils import asyncio_run, MimeTypeParser, SecureXMLParser
 
 __TYPENAME__ = "RestApiRequester"
 
@@ -28,14 +28,15 @@ class RestApiRequesterV1_0(FreeFlowExt):
     __version__ = "1.0"
 
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
-                 sslenabled=True, insecure=False, cafile=None, capath=None,
-                 cadata=None, max_tasks=4):
+                 max_response_size=10485760, sslenabled=True, insecure=False,
+                 cafile=None, capath=None, cadata=None, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
         self._url = url
         self._timeout = timeout
         self._headers = headers
         self._method = method.upper()
+        self._max_resp_size = max_response_size
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))
@@ -113,16 +114,38 @@ class RestApiRequesterV1_0(FreeFlowExt):
                     return (
                         {"req": {}, "headers": {}, "body": {}}, 102)
 
+                content_length = int(resp.headers.get('Content-Length'))
+                if content_length > self._max_resp_size:
+                    self._logger.error("response size %d exceeded max size %s",
+                                       content_length, self._max_resp_size)
+                    return (
+                        {"req": {}, "headers": {}, "body": {}}, 105)
+
                 raw = await resp.read()
+                if len(raw) > self._max_resp_size:
+                    self._logger.error("real response size %d exceeded max size %s",
+                                       content_length, self._max_resp_size)
+                    return (
+                        {"req": {}, "headers": {}, "body": {}}, 105)
 
                 try:
-                    body = json.loads(raw.decode("utf-8"))
-                except json.JSONDecodeError:
-                    body = raw.decode("utf-8")  # oppure tenere i bytes
+                    if MimeTypeParser.is_json(resp.mimetype):
+                        body = json.loads(raw.decode("utf-8"))
+                    elif MimeTypeParser.is_xml(resp.mimetype):
+                        parser = SecureXMLParser(max_size=self._max_resp_size)
+                        body = parser.parse_string(raw.decode("utf-8"))
+                    else:
+                        body = {}
+                except Exception as ex:
+                    self._logger.error("Exception in parsing content: %s", ex)
+                    return (
+                        {"req": {}, "headers": {}, "body": {}}, 106)
+
             req_info = {k: self._multidict_to_dict(v)
                         for k, v in dict(resp._request_info._asdict()).items()}
             return (
-                {"req": req_info, "headers": dict(resp.headers), "body": body}, 0)
+                {"req": req_info, "headers": dict(resp.headers), "body": body},
+                0)
 
         except aiohttp.ClientError as ex:
             self._logger.error("aiohttp request error %s", ex)
