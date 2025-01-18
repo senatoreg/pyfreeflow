@@ -185,6 +185,8 @@ class DataTransformerV1_0(FreeFlowExt):
             return self._env.table_from({k: self._py_to_lua(v) for k, v in a.items()})
         elif isinstance(a, (list, tuple)):
             return self._env.table_from([self._py_to_lua(v) for v in a])
+        elif a is None:
+            return self._env.globals().safe_env['NIL']
         else:
             return a
 
