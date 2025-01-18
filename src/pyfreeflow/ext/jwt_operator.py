@@ -94,13 +94,13 @@ class JwtOperatorV1_0(FreeFlowExt):
         hdr["kid"] = kid
 
         if self._duration is not None and "exp" not in body:
-            body["exp"] = int(dt.datetime.now(dt.UTC).timestamp() + self._duration)
+            body["exp"] = int(dt.datetime.now(dt.timezone.utc).timestamp() + self._duration)
 
         if self._not_before is not None and "nbf" not in body:
-            body["nbf"] = int(dt.datetime.now(dt.UTC).timestamp() + self._not_before)
+            body["nbf"] = int(dt.datetime.now(dt.timezone.utc).timestamp() + self._not_before)
 
         if "iat" not in body:
-            body["iat"] = int(dt.datetime.now(dt.UTC).timestamp())
+            body["iat"] = int(dt.datetime.now(dt.timezone.utc).timestamp())
 
         if self._issuer is not None and "iss" not in body:
             body["iss"] = self._issuer

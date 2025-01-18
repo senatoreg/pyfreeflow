@@ -158,7 +158,7 @@ class DataTransformerV1_0(FreeFlowExt):
         return lua
 
     def _dt_now_ts(self):
-        return int(dt.datetime.now(dt.UTC).timestamp())
+        return int(dt.datetime.now(dt.timezone.utc).timestamp())
 
     def _dt_delta_ts(self, duration):
         return DurationParser.parse(duration)
