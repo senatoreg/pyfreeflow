@@ -1,6 +1,7 @@
 from .types import FreeFlowExt
 import logging
 import datetime as dt
+from cryptography.fernet import Fernet
 from ..utils import deepupdate, DurationParser
 
 try:
@@ -30,7 +31,7 @@ class DataTransformerV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name, transformer="", lua_func=[],
+    def __init__(self, name, transformer="", lua_func=[], secret=None,
                  force=False, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
         self._force = force
@@ -40,6 +41,12 @@ class DataTransformerV1_0(FreeFlowExt):
         self._env.globals().safe_env["timedelta"] = self._dt_delta_ts
         self._env.globals().safe_env["dict"] = dict
         self._env.globals().safe_env["list"] = list
+
+        if secret is not None:
+            with open(secret, "rb") as f:
+                self._cipher = Fernet(f.read())
+            self._env.globals().safe_env["encrypt"] = self._encrypt
+            self._env.globals().safe_env["decrypt"] = self._decrypt
 
         for _name, _func in lua_func:
             self._env.globals().safe_env[_name] = _func
@@ -162,6 +169,12 @@ class DataTransformerV1_0(FreeFlowExt):
 
     def _dt_delta_ts(self, duration):
         return DurationParser.parse(duration)
+
+    def _encrypt(self, value):
+        return self._cipher.encrypt(value.encode("utf-8"))
+
+    def _decrypt(self, value):
+        return self._cipher.decrypt(value).decode("utf-8")
 
     def _lua_nil_to_none(self, x):
         return str(x) == "nil"

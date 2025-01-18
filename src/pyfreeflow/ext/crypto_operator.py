@@ -28,13 +28,13 @@ class FernetCryptoOperator(FreeFlowExt):
 
     async def _enc(self, data, key):
         cipher = await self._read_key(key)
-        d = cipher.encrypt(data.encode('utf-8'))
-        return d.decode('utf-8'), 0
+        d = cipher.encrypt(data.encode("utf-8"))
+        return d.decode("utf-8"), 0
 
     async def _dec(self, data, key):
         cipher = await self._read_key(key)
-        d = cipher.decrypt(data.encode('utf-8'))
-        return d.decode('utf-8'), 0
+        d = cipher.decrypt(data.encode("utf-8"))
+        return d.decode("utf-8"), 0
 
     async def do(self, state, data):
         op = data.get("op", "decrypt")

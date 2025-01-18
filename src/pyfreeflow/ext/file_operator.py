@@ -39,7 +39,7 @@ class AnyFileOperator(FreeFlowExt):
 
     async def _write(self, path, raw):
         if self._mode == "b" and isinstance(raw, str):
-            raw_ = raw.encode()
+            raw_ = raw.encode("utf-8")
         else:
             raw_ = raw
         try:

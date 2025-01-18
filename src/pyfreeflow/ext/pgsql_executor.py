@@ -1,6 +1,7 @@
 from .types import FreeFlowExt
 import psycopg
 import asyncio
+from cryptography.fernet import Fernet
 import logging
 
 __TYPENAME__ = "PgSqlExecutor"
@@ -84,10 +85,15 @@ class PgSqlExecutor(FreeFlowExt):
 
     CONNECTION_STRING = "postgresql://{userspec}{hostspec}{dbspec}{paramspec}"
 
-    def __init__(self, name, username=None, password=None, host=[],
-                 dbname=None, param={}, statement=None, max_connections=4,
-                 max_tasks=4):
+    def __init__(self, name, username=None, password=None, secret=None,
+                 host=[], dbname=None, param={}, statement=None,
+                 max_connections=4, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
+
+        if secret is not None:
+            with open(secret, "rb") as f:
+                cipher = Fernet(f.read())
+                password = cipher.decrypt(password.encode("utf-8")).decode("utf-8")
 
         userspec = self._conninfo_helper(username, password, sep=":")
 
