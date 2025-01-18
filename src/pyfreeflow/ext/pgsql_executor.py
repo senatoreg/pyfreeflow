@@ -79,7 +79,7 @@ class ConnectionPool():
 #
 # PgSql Executor
 #
-class PgSqlExecutor(FreeFlowExt):
+class PgSqlExecutorV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 

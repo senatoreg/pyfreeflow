@@ -5,7 +5,7 @@ import logging
 __TYPENAME__ = "EnvOperator"
 
 
-class EnvOperator(FreeFlowExt):
+class EnvOperatorV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 

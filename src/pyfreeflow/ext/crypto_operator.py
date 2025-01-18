@@ -6,7 +6,7 @@ import logging
 __TYPENAME__ = "{}CryptoOperator"
 
 
-class FernetCryptoOperator(FreeFlowExt):
+class FernetCryptoOperatorV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__.format("Fernet")
     __version__ = "1.0"
 

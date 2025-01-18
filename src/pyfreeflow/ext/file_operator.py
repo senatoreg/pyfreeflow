@@ -11,7 +11,7 @@ __YAML_TYPENAME__ = "YamlFileOperator"
 __TOML_TYPENAME__ = "TomlFileOperator"
 
 
-class AnyFileOperator(FreeFlowExt):
+class AnyFileOperatorV1_0(FreeFlowExt):
     __typename__ = __ANY_TYPENAME__
     __version__ = "1.0"
 
@@ -59,7 +59,7 @@ class AnyFileOperator(FreeFlowExt):
         return state, rval
 
 
-class JsonFileOperator(FreeFlowExt):
+class JsonFileOperatorV1_0(FreeFlowExt):
     __typename__ = __JSON_TYPENAME__
     __version__ = "1.0"
 
@@ -107,7 +107,7 @@ class JsonFileOperator(FreeFlowExt):
         return state, rval
 
 
-class YamlFileOperator(FreeFlowExt):
+class YamlFileOperatorV1_0(FreeFlowExt):
     __typename__ = __YAML_TYPENAME__
     __version__ = "1.0"
 
@@ -159,7 +159,7 @@ if version_info.major > 3 or (version_info.major == 3 and
     import tomllib
     import tomli_w
 
-    class TomlFileOperator(FreeFlowExt):
+    class TomlFileOperatorV1_0(FreeFlowExt):
         __typename__ = __TOML_TYPENAME__
         __version__ = "1.0"
 

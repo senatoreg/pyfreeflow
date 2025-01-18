@@ -9,7 +9,7 @@ __YAML_TYPENAME__ = "YamlBufferOperator"
 __TOML_TYPENAME__ = "TomlBufferOperator"
 
 
-class JsonBufferOperator(FreeFlowExt):
+class JsonBufferOperatorV1_0(FreeFlowExt):
     __typename__ = __JSON_TYPENAME__
     __version__ = "1.0"
 
@@ -56,7 +56,7 @@ class JsonBufferOperator(FreeFlowExt):
         return state, rval
 
 
-class YamlBufferOperator(FreeFlowExt):
+class YamlBufferOperatorV1_0(FreeFlowExt):
     __typename__ = __YAML_TYPENAME__
     __version__ = "1.0"
 
@@ -109,7 +109,7 @@ if version_info.major > 3 or (version_info.major == 3 and
     import tomllib
     import tomli_w
 
-    class TomlBufferOperator(FreeFlowExt):
+    class TomlBufferOperatorV1_0(FreeFlowExt):
         __typename__ = __TOML_TYPENAME__
         __version__ = "1.0"
 
