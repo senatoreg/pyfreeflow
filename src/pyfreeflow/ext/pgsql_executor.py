@@ -153,7 +153,7 @@ class PgSqlExecutor(FreeFlowExt):
             async with conn.cursor() as cur:
                 value = data.get("value")
 
-                if value and len(value) > 1:
+                if value and isinstance(value, list):
                     await cur.executemany(self._stm, value)
                 else:
                     await cur.execute(self._stm, value)
