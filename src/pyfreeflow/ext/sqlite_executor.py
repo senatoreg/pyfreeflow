@@ -41,6 +41,7 @@ class ConnectionPool():
             lock.release()
             raise ex
 
+        lock.release()
         del cls.CLIENT[client_name]
         del cls.POOL[client_name]
 

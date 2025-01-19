@@ -28,6 +28,25 @@ class ConnectionPool():
                 cls.POOL[client_name] = asyncio.Queue()
 
     @classmethod
+    async def unregister(cls, client_name):
+        if client_name not in cls.CLIENT.keys():
+            return
+
+        lock = cls.CLIENT[client_name]["lock"]
+        await lock.acquire()
+        try:
+            while not cls.POOL[client_name].empty():
+                conn = await cls.POOL[client_name].get()
+                await conn.close()
+        except psycopg.errors.Error as ex:
+            lock.release()
+            raise ex
+
+        lock.release()
+        del cls.CLIENT[client_name]
+        del cls.POOL[client_name]
+
+    @classmethod
     async def get(cls, client_name):
         if client_name not in cls.CLIENT.keys():
             return None
