@@ -32,9 +32,12 @@ class FreeFlowExt(metaclass=ExtRegister):
             for i, p in enumerate(data):
                 if cur == 0:
                     done, pending = await asyncio.wait(
-                        aws, loop=loop, return_when=asyncio.FIRST_COMPLETED)
+                        aws, return_when=asyncio.FIRST_COMPLETED)
                     aws = list(pending)
                     cur += len(done)
+                    for task in done:
+                        _, t = await task
+                        _data.append(t)
 
                 if p[1] == 0:
                     aws.append(loop.create_task(
@@ -42,12 +45,13 @@ class FreeFlowExt(metaclass=ExtRegister):
                         name=self._name + "-unpack-" + str(i)))
                     cur -= 1
 
-            await asyncio.wait(aws, loop=loop,
-                               return_when=asyncio.ALL_COMPLETED)
+            done, pending = await asyncio.wait(
+                aws, return_when=asyncio.ALL_COMPLETED)
 
-            for task in aws:
-                state, p = await task
-                _data.append(p)
+            assert (len(pending) == 0)
+            for task in done:
+                state, t = await task
+                _data.append(t)
             return state, _data
         else:
             # param0 or param1 or ...
