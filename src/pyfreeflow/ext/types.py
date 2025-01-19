@@ -31,9 +31,10 @@ class FreeFlowExt(metaclass=ExtRegister):
 
             for i, p in enumerate(data):
                 if cur == 0:
-                    await asyncio.wait(aws, loop=loop,
-                                       return_when=asyncio.FIRST_COMPLETED)
-                    cur += 1
+                    done, pending = await asyncio.wait(
+                        aws, loop=loop, return_when=asyncio.FIRST_COMPLETED)
+                    aws = list(pending)
+                    cur += len(done)
 
                 if p[1] == 0:
                     aws.append(loop.create_task(
