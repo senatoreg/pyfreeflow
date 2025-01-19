@@ -145,10 +145,13 @@ class SqLiteExecutorV1_0(FreeFlowExt):
             async with conn.cursor() as cur:
                 value = data.get("value")
 
-                if value and isinstance(value, list):
-                    await cur.executemany(self._stm, value)
+                if value is not None:
+                    if value and isinstance(value, list) and len(value) > 0:
+                        await cur.executemany(self._stm, value)
+                    elif value and isinstance(value, dict) and len(value) > 0:
+                        await cur.execute(self._stm, value)
                 else:
-                    await cur.execute(self._stm, value)
+                    await cur.execute(self._stm)
 
                 if cur.description:
                     rs["resultset"] = await cur.fetchall()

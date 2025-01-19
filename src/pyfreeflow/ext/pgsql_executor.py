@@ -178,9 +178,9 @@ class PgSqlExecutorV1_0(FreeFlowExt):
                 value = data.get("value")
 
                 if value is not None:
-                    if value and isinstance(value, list) and value > 0:
+                    if value and isinstance(value, list) and len(value) > 0:
                         await cur.executemany(self._stm, value)
-                    elif value and isinstance(value, dict) and value > 0:
+                    elif value and isinstance(value, dict) and len(value) > 0:
                         await cur.execute(self._stm, value)
                 else:
                     await cur.execute(self._stm)
