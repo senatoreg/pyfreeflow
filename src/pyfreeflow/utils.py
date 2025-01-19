@@ -1,3 +1,4 @@
+import os
 import copy
 import re
 import asyncio
@@ -34,6 +35,38 @@ def asyncio_run(fn, force=False):
         else:
             return asyncio.run(fn)
 
+
+class EnvironmentVarParser():
+    SIMPLE_RE = re.compile(r'(?<!\\)\$([a-zA-Z0-9_]+)')
+    EXTENDED_RE = re.compile(r'(?<!\\)\$\{([a-zA-Z0-9_]+)((:?-)([^}]+))?\}')
+
+    @classmethod
+    def _repl_simple(cls, m, default=None):
+        var = m.group(1)
+        return os.environ.get(var, default)
+
+    @classmethod
+    def _repl_ext(cls, m):
+        var = m.group(1)
+
+        if m.group(2) is not None:
+            default = m.group(4)
+            spec = m.group(3)
+            value = os.environ.get(var, default)
+            if spec == ":-" and len(value) == 0:
+                return default
+            elif spec == "-" or value is not None:
+                return value
+            else:
+                return None
+
+        return os.environ.get(var, None)
+
+    @classmethod
+    def parse(cls, s):
+        a = cls.SIMPLE_RE.sub(cls._repl_simple, s)
+        b = cls.EXTENDED_RE.sub(cls._repl_ext, a)
+        return b
 
 class DurationParser():
     INTEGER = pp.Word(pp.nums).setParseAction(lambda t: int(t[0]))
