@@ -6,7 +6,7 @@ import json
 import ssl
 import asyncio
 import logging
-from ..utils import asyncio_run, MimeTypeParser, SecureXMLParser
+from ..utils import asyncio_run, MimeTypeParser, SecureXMLParser, EnvVarParser
 
 __TYPENAME__ = "RestApiRequester"
 
@@ -32,9 +32,9 @@ class RestApiRequesterV1_0(FreeFlowExt):
                  cafile=None, capath=None, cadata=None, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
-        self._url = url
-        self._timeout = timeout
-        self._headers = headers
+        self._url = EnvVarParser.parse(url)
+        self._timeout = EnvVarParser.parse(timeout)
+        self._headers = {k: EnvVarParser.parse(v) for k, v in headers}
         self._method = method.upper()
         self._max_resp_size = max_response_size
 
@@ -51,7 +51,9 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 self._ssl_context.verify_mode = ssl.CERT_REQUIRED
             if cafile or capath or cadata:
                 self._ssl_context.load_verify_locations(
-                    cafile=cafile, capath=capath, cadata=cadata)
+                    cafile=EnvVarParser.parse(cafile),
+                    capath=EnvVarParser.parse(capath),
+                    cadata=EnvVarParser.parse(cadata))
         else:
             self._ssl_context = None
 

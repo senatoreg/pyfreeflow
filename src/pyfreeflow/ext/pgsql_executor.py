@@ -3,6 +3,7 @@ import psycopg
 import asyncio
 from cryptography.fernet import Fernet
 import logging
+from ..utils import EnvVarParser
 
 __TYPENAME__ = "PgSqlExecutor"
 
@@ -91,21 +92,24 @@ class PgSqlExecutorV1_0(FreeFlowExt):
         super().__init__(name, max_tasks=max_tasks)
 
         if secret is not None:
-            with open(secret, "rb") as f:
+            with open(EnvVarParser.parse(secret), "rb") as f:
                 cipher = Fernet(f.read())
                 password = cipher.decrypt(password.encode("utf-8")).decode("utf-8")
 
-        userspec = self._conninfo_helper(username, password, sep=":")
+        userspec = self._conninfo_helper(EnvVarParser.parse(username),
+                                         EnvVarParser.parse(password), sep=":")
 
-        hostspec = ",".join(host)
+        hostspec = ",".join([EnvVarParser.parse(x) for x in host])
         hostspec = "@" + hostspec if len(hostspec) > 0 else ""
 
-        dbspec = self._conninfo_helper(None, dbname, sep="/")
+        dbspec = self._conninfo_helper(None, EnvVarParser.parse(dbname),
+                                       sep="/")
 
         if "connect_timeout" not in param.keys():
             param["connect_timeout"] = 30
 
-        paramspec = "?" + "&".join([k + "=" + str(v) for k, v in param.items()])
+        paramspec = "?" + "&".join([k + "=" + EnvVarParser.parse(str(v))
+                                    for k, v in param.items()])
 
         self._conninfo = self.CONNECTION_STRING.format(
             userspec=userspec, hostspec=hostspec, dbspec=dbspec,

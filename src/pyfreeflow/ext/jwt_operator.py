@@ -3,7 +3,7 @@ import jwt
 import hashlib
 import logging
 import datetime as dt
-from ..utils import DurationParser
+from ..utils import DurationParser, EnvVarParser
 
 __TYPENAME__ = "JwtOperator"
 
@@ -34,10 +34,11 @@ class JwtOperatorV1_0(FreeFlowExt):
                  issuer=None, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
-        self._algorithms = algorithms
+        self._algorithms = [EnvVarParser.parse(x) for x in algorithms]
 
         self._pub_key = {}
         for key_file in pubkey_files:
+            key_file = EnvVarParser.parse(key_file)
             with open(key_file, "rb") as f:
                 content = f.read()
                 h = hashlib.sha256(content).hexdigest()
@@ -45,6 +46,7 @@ class JwtOperatorV1_0(FreeFlowExt):
 
         self._priv_key = {}
         for key_file in privkey_files:
+            key_file = EnvVarParser.parse(key_file)
             with open(key_file, "rb") as f:
                 content = f.read()
                 h = hashlib.sha256(content).hexdigest()
@@ -55,14 +57,14 @@ class JwtOperatorV1_0(FreeFlowExt):
 
         self._headers = headers
         self._options = {
-            "require": [x for x in required_claims],
+            "require": [EnvVarParser.parse(x) for x in required_claims],
             "verify_signature": verify_sign,
             "verify_exp": verify_exp,
         }
 
         self._duration = DurationParser.parse(duration) if isinstance(duration, str) else None
         self._not_before = DurationParser.parse(not_before) if isinstance(not_before, str) else None
-        self._issuer = issuer
+        self._issuer = EnvVarParser.parse(issuer)
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))

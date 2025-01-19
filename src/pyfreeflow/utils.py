@@ -36,7 +36,7 @@ def asyncio_run(fn, force=False):
             return asyncio.run(fn)
 
 
-class EnvironmentVarParser():
+class EnvVarParser():
     SIMPLE_RE = re.compile(r'(?<!\\)\$([a-zA-Z0-9_]+)')
     EXTENDED_RE = re.compile(r'(?<!\\)\$\{([a-zA-Z0-9_]+)((:?-)([^}]+))?\}')
 
@@ -64,9 +64,12 @@ class EnvironmentVarParser():
 
     @classmethod
     def parse(cls, s):
+        if s is None or not isinstance(s, str):
+            return s
         a = cls.SIMPLE_RE.sub(cls._repl_simple, s)
         b = cls.EXTENDED_RE.sub(cls._repl_ext, a)
         return b
+
 
 class DurationParser():
     INTEGER = pp.Word(pp.nums).setParseAction(lambda t: int(t[0]))
@@ -215,8 +218,8 @@ class SecureXMLParser:
         children = {}
         for child in element:
             # child_tag = child.tag
-            # ns = self._mapns[lxml.etree.QName(child).namespace] + ":" if lxml.etree.QName(child).namespace is not None else ""
-            child_tag = lxml.etree.QName(child).localname
+            # child_tag = lxml.etree.QName(child).localname
+            child_tag = child.tag
             child_dict = self._element_to_dict(child, depth + 1)
 
             if child_tag in children:
@@ -255,8 +258,8 @@ class SecureXMLParser:
                                          self.parser)
             self._nsmap = root.nsmap
             self._mapns = {v: k for k, v in self._nsmap.items()}
-            # ns = self._mapns[lxml.etree.QName(root).namespace] + ":" if lxml.etree.QName(root).namespace is not None else ""
-            return {lxml.etree.QName(root).localname: self._element_to_dict(root)}
+            # return {lxml.etree.QName(root).localname: self._element_to_dict(root)}
+            return {root.tag: self._element_to_dict(root)}
         except lxml.etree.XMLSyntaxError as e:
             raise ValueError(f"XML malformed: {e}")
         except Exception as e:
@@ -278,8 +281,8 @@ class SecureXMLParser:
             root = lxml.etree.fromstring(xml_bytes, self.parser)
             self._nsmap = root.nsmap
             self._mapns = {v: k for k, v in self._nsmap.items()}
-            # ns = self._mapns[lxml.etree.QName(root).namespace] + ":" if lxml.etree.QName(root).namespace is not None else ""
-            return {lxml.etree.QName(root).localname: self._element_to_dict(root)}
+            # return {lxml.etree.QName(root).localname: self._element_to_dict(root)}
+            return {root.tag: self._element_to_dict(root)}
         except lxml.etree.XMLSyntaxError as e:
             raise ValueError(f"XML malformato: {e}")
         except Exception as e:

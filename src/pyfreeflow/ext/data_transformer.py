@@ -3,7 +3,7 @@ import logging
 import datetime as dt
 from decimal import Decimal
 from cryptography.fernet import Fernet
-from ..utils import deepupdate, DurationParser
+from ..utils import deepupdate, DurationParser, EnvVarParser
 
 try:
     import lupa.luajit21 as lupa
@@ -44,7 +44,7 @@ class DataTransformerV1_0(FreeFlowExt):
         self._env.globals().safe_env["list"] = list
 
         if secret is not None:
-            with open(secret, "rb") as f:
+            with open(EnvVarParser.parse(secret), "rb") as f:
                 self._cipher = Fernet(f.read())
             self._env.globals().safe_env["encrypt"] = self._encrypt
             self._env.globals().safe_env["decrypt"] = self._decrypt
