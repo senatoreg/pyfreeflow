@@ -91,6 +91,8 @@ class PgSqlExecutorV1_0(FreeFlowExt):
                  max_connections=4, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
+        username = EnvVarParser.parse(username)
+        password = EnvVarParser.parse(password)
         if secret is not None:
             with open(EnvVarParser.parse(secret), "rb") as f:
                 cipher = Fernet(f.read())
