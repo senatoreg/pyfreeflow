@@ -234,7 +234,7 @@ class SecureXMLParser:
         element_data['tail'] = tail
         if children:
             # element_data.update(children)
-            element_data['items'] = children
+            element_data['elem'] = children
 
         return element_data
 
