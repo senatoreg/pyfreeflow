@@ -130,6 +130,8 @@ class RestApiRequesterV1_0(FreeFlowExt):
                     return (
                         {"req": {}, "headers": {}, "body": {}}, 105)
 
+                req_info = {k: self._multidict_to_dict(v)
+                            for k, v in dict(resp._request_info._asdict()).items()}
                 try:
                     mimetype = resp.headers.get("Content-Type",
                                                 "application/json")
@@ -143,10 +145,9 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 except Exception as ex:
                     self._logger.error("Exception in parsing content: %s", ex)
                     return (
-                        {"req": {}, "headers": {}, "body": {}}, 106)
+                        {"req": req_info, "headers": dict(resp.headers),
+                         "body": {}}, 106)
 
-            req_info = {k: self._multidict_to_dict(v)
-                        for k, v in dict(resp._request_info._asdict()).items()}
             return (
                 {"req": req_info, "headers": dict(resp.headers), "body": body},
                 0)
