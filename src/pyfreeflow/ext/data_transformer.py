@@ -70,6 +70,12 @@ class DataTransformerV1_0(FreeFlowExt):
         lua = lupa.LuaRuntime(unpack_returned_tuples=True)
 
         lua.execute("""
+            regex = {
+              escape = function (text)
+                return text:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+              end
+            }
+
             if not table.find then
               function table.find(t, value, start_index)
                 local si = start_index or 1
@@ -148,6 +154,7 @@ class DataTransformerV1_0(FreeFlowExt):
               math = math,
               table = table,
               print = print,
+              regex = regex,
               lookup_object_by_key = lookup_object_by_key,
               NIL = setmetatable({},{__tostring=function() return "nil" end}),
             }
