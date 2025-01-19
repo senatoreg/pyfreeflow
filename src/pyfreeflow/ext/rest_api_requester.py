@@ -34,7 +34,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
 
         self._url = EnvVarParser.parse(url)
         self._timeout = EnvVarParser.parse(timeout)
-        self._headers = {k: EnvVarParser.parse(v) for k, v in headers}
+        self._headers = {k: EnvVarParser.parse(v) for k, v in headers.items()}
         self._method = method.upper()
         self._max_resp_size = max_response_size
 
@@ -116,7 +116,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
                     return (
                         {"req": {}, "headers": {}, "body": {}}, 102)
 
-                content_length = int(resp.headers.get('Content-Length', 0))
+                content_length = int(resp.headers.get("Content-Length", 0))
                 if content_length > self._max_resp_size:
                     self._logger.error("response size %d exceeded max size %s",
                                        content_length, self._max_resp_size)
@@ -131,9 +131,11 @@ class RestApiRequesterV1_0(FreeFlowExt):
                         {"req": {}, "headers": {}, "body": {}}, 105)
 
                 try:
-                    if MimeTypeParser.is_json(resp.mimetype):
+                    mimetype = resp.headers.get("Content-Type",
+                                                "application/json")
+                    if MimeTypeParser.is_json(mimetype):
                         body = json.loads(raw.decode("utf-8"))
-                    elif MimeTypeParser.is_xml(resp.mimetype):
+                    elif MimeTypeParser.is_xml(mimetype):
                         parser = SecureXMLParser(max_size=self._max_resp_size)
                         body = parser.parse_string(raw.decode("utf-8"))
                     else:
