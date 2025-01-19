@@ -114,7 +114,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
                     return (
                         {"req": {}, "headers": {}, "body": {}}, 102)
 
-                content_length = int(resp.headers.get('Content-Length'))
+                content_length = int(resp.headers.get('Content-Length', 0))
                 if content_length > self._max_resp_size:
                     self._logger.error("response size %d exceeded max size %s",
                                        content_length, self._max_resp_size)
