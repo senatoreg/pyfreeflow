@@ -1,11 +1,10 @@
 from .types import FreeFlowExt
-import psycopg
+import aiosqlite
 import asyncio
-from cryptography.fernet import Fernet
 import logging
 from ..utils import EnvVarParser, asyncio_run
 
-__TYPENAME__ = "PgSqlExecutor"
+__TYPENAME__ = "SqLiteExecutor"
 
 
 #
@@ -28,6 +27,24 @@ class ConnectionPool():
                 cls.POOL[client_name] = asyncio.Queue()
 
     @classmethod
+    async def unregister(cls, client_name):
+        if client_name not in cls.CLIENT.keys():
+            return
+
+        lock = cls.CLIENT[client_name]["lock"]
+        await lock.acquire()
+        try:
+            while not cls.POOL[client_name].empty():
+                conn = await cls.POOL[client_name].get()
+                await conn.close()
+        except aiosqlite.Error as ex:
+            lock.release()
+            raise ex
+
+        del cls.CLIENT[client_name]
+        del cls.POOL[client_name]
+
+    @classmethod
     async def get(cls, client_name):
         if client_name not in cls.CLIENT.keys():
             return None
@@ -44,12 +61,12 @@ class ConnectionPool():
                 conn = await cls.POOL[client_name].get()
                 if await cls.is_alive(conn):
                     return conn
-        except psycopg.errors.Error as ex:
+        except aiosqlite.Error as ex:
             lock.release()
             raise ex
 
         conninfo = cls.CLIENT[client_name]["conninfo"]
-        return await psycopg.AsyncConnection.connect(conninfo)
+        return await aiosqlite.connect(**conninfo)
 
     @classmethod
     async def release(cls, client_name, conn):
@@ -73,49 +90,25 @@ class ConnectionPool():
                 del d
             await conn.commit()
             return True
-        except psycopg.errors.Error:
+        except aiosqlite.Error:
             return False
 
 
 #
-# PgSql Executor
+# SqLite Executor
 #
-class PgSqlExecutorV1_0(FreeFlowExt):
+class SqLiteExecutorV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
-    CONNECTION_STRING = "postgresql://{userspec}{hostspec}{dbspec}{paramspec}"
-
-    def __init__(self, name, username=None, password=None, secret=None,
-                 host=[], dbname=None, param={}, statement=None,
+    def __init__(self, name, path, statement=None, param={},
                  max_connections=4, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
-        username = EnvVarParser.parse(username)
-        password = EnvVarParser.parse(password)
-        if secret is not None:
-            with open(EnvVarParser.parse(secret), "rb") as f:
-                cipher = Fernet(f.read())
-                password = cipher.decrypt(password.encode("utf-8")).decode("utf-8")
+        self._conninfo = {"database": path}
+        for k, v in param.items():
+            self._conninfo[k] = EnvVarParser.parse(v)
 
-        userspec = self._conninfo_helper(EnvVarParser.parse(username),
-                                         EnvVarParser.parse(password), sep=":")
-
-        hostspec = ",".join([EnvVarParser.parse(x) for x in host])
-        hostspec = "@" + hostspec if len(hostspec) > 0 else ""
-
-        dbspec = self._conninfo_helper(None, EnvVarParser.parse(dbname),
-                                       sep="/")
-
-        if "connect_timeout" not in param.keys():
-            param["connect_timeout"] = 30
-
-        paramspec = "?" + "&".join([k + "=" + EnvVarParser.parse(str(v))
-                                    for k, v in param.items()])
-
-        self._conninfo = self.CONNECTION_STRING.format(
-            userspec=userspec, hostspec=hostspec, dbspec=dbspec,
-            paramspec=paramspec)
         self._stm = statement
         assert (self._stm is not None)
 
@@ -124,13 +117,6 @@ class PgSqlExecutorV1_0(FreeFlowExt):
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))
-
-    def _conninfo_helper(self, a, b, sep=":"):
-        return "{a}{s}{b}".format(
-            a=a if a else "",
-            s=sep if b else "",
-            b=b if b else ""
-        )
 
     async def __aenter__(self):
         return self
@@ -150,7 +136,7 @@ class PgSqlExecutorV1_0(FreeFlowExt):
 
         try:
             conn = await ConnectionPool.get(self._name)
-        except psycopg.errors.Error as ex:
+        except aiosqlite.Error as ex:
             self._logger.error(ex)
             return state, (rs, 101)
 
@@ -158,19 +144,16 @@ class PgSqlExecutorV1_0(FreeFlowExt):
             async with conn.cursor() as cur:
                 value = data.get("value")
 
-                if value is not None:
-                    if value and isinstance(value, list) and value > 0:
-                        await cur.executemany(self._stm, value)
-                    elif value and isinstance(value, dict) and value > 0:
-                        await cur.execute(self._stm, value)
+                if value and isinstance(value, list):
+                    await cur.executemany(self._stm, value)
                 else:
-                    await cur.execute(self._stm)
+                    await cur.execute(self._stm, value)
 
                 if cur.description:
                     rs["resultset"] = await cur.fetchall()
 
             await conn.commit()
-        except psycopg.errors.Error as ex:
+        except aiosqlite.Error as ex:
             rc = 102
             if not conn.closed:
                 await conn.rollback()
