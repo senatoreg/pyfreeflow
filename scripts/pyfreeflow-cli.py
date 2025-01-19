@@ -2,6 +2,7 @@
 import sys
 import argparse
 import pyfreeflow
+from pyfreeflow.utils import EnvVarParser
 import json
 import yaml
 import asyncio
@@ -71,7 +72,8 @@ async def cli(argv):
 
     assert ("pipeline" in config.keys())
     pipe = pyfreeflow.pipeline.Pipeline(**config.get("pipeline"))
-    output = await pipe.run(config.get("args", {}))
+    params = {k: EnvVarParser.parse(v) for k, v in config.get("args", {}).items()}
+    output = await pipe.run(params)
 
     OUTPUT_FORMATTER[args.fmt](output[0], args.output)
 
