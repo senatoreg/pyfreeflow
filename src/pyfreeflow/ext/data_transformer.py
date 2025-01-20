@@ -70,198 +70,218 @@ class DataTransformerV1_0(FreeFlowExt):
         lua = lupa.LuaRuntime(unpack_returned_tuples=True)
 
         lua.execute("""
-            regex = {
-              escape = function (text)
-                return text:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+          local dummy = function(...) end
+
+          local regex = {
+            escape = function (text)
+              return text:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+            end
+          }
+
+          local null_mt = {
+            __metatable = "null",
+            __tostring = function() return "null" end,
+            __newindex = function(t, key, value) end,
+            __usedindex = function(t, key, value) end
+          }
+
+          local array_mt = {
+            __metatable = "array",
+            __newindex = function(t, key, value)
+              if type(key) ~= "number" then
+                error("index value must be a number", 2)
               end
-            }
-
-            local null_t = {
-              __metatable = "null",
-              __tostring = function() return "null" end,
-              __newindex = function(t, key, value) end,
-              __usedindex = function(t, key, value) end
-            }
-
-            local array_t = {
-              __metatable = "array",
-              __newindex = function(t, key, value)
-                if type(key) ~= "number" then
-                  error("index value must be a number", 2)
-                end
-                rawset(t, key, value)
-              end,
-              __usedindex = function(t, key, value)
-                if type(key) ~= "number" then
-                  error("index value must be a number", 2)
-                end
-                rawset(t, key, value)
+              rawset(t, key, value)
+            end,
+            __usedindex = function(t, key, value)
+              if type(key) ~= "number" then
+                error("index value must be a number", 2)
               end
-            }
+              rawset(t, key, value)
+            end
+          }
 
-            local map_t = {
-              __metatable = "map",
-            }
+          local map_mt = {
+            __metatable = "map",
+          }
 
-            null = setmetatable({}, null_t)
-            array = function()
-                return setmetatable({}, array_t)
-            end
-            map = function()
-                return setmetatable({}, map_t)
-            end
-
-            local __table = {}
-
-            -- Sostituisci le funzioni di table per proteggere null
-            __table.insert = table.insert
-            table.insert = function(t, ...)
-                if getmetatable(t) ~= "null" and getmetatable(t) ~= "map" then
-                    return __table.insert(t, ...)
-                end
-            end
-            __table.remove = table.remove
-            table.remove = function(t, ...)
-                if getmetatable(t) ~= "null" and getmetatable(t) ~= "map" then
-                    return __table.remove(t, ...)
-                end
-            end
-            __table.concat = table.concat
-            table.concat = function(t, ...)
-                if getmetatable(t) ~= "null" then
-                    return __table.concat(t, ...)
-                end
-            end
-            __table.move = table.move
-            table.move = function(s, sp, tp, n, t)
-                if s~= null and getmetatable(t) ~= "null" then
-                    return __table.move(s, sp, tp, n, t)
-                end
-            end
-            __table.rawset = table.rawset
-            table.rawset = function(t, ...)
-                if getmetatable(t) ~= "null" then
-                    return __table.rawset(t, ...)
-                end
-            end
-            __table.rawget = table.rawget
-            table.rawget = function(t, ...)
-                if getmetatable(t) ~= "null" then
-                    return __table.rawget(t, ...)
-                end
-            end
-
-            if not table.null then
-              function table.isnull(t)
-                return getmetatable(t) == "null"
+          local null = setmetatable({}, null_mt)
+          local array = function(t)
+            if type(t) == "table" then
+              local self = {}
+              for i, d in ipairs(t) do
+                table.insert(self, d)
               end
+              return setmetatable(self, array_mt)
             end
+            return setmetatable({}, array_mt)
+          end
+          local map = function(t)
+            if type(t) == "table" then
+              return setmetatable(t, map_mt)
+            end
+            return setmetatable({}, map_mt)
+          end
 
-            if not table.ismap then
-              function table.ismap(t)
-                return getmetatable(t) == "map"
+          local __table = {}
+          __table.sort = table.sort
+          __table.maxn = table.maxn
+          __table.unpack = table.unpack
+          __table.pack = table.pack
+          __table.insert = function(t, ...)
+            if getmetatable(t) == "null" or
+              getmetatable(t) == "map" then
+               -- error("array expected", 3)
+               return
+            end
+            return table.insert(t, ...)
+          end
+          __table.remove = function(t, ...)
+            if getmetatable(t) == "null" or
+              getmetatable(t) == "map" then
+               -- error("array expected", 3)
+               return
+            end
+            return table.remove(t, ...)
+          end
+          __table.concat = function(t, ...)
+              if getmetatable(t) == "null" or
+                getmetatable(t) == "map" then
+                 -- error("array expected", 3)
+                 return
               end
-            end
-
-            if not table.isarray then
-              function table.isarray(t)
-                return getmetatable(t) == "array"
+              return table.concat(t, ...)
+          end
+          __table.move = function(s, sp, tp, n, t)
+              if getmetatable(t) == "null" or
+                getmetatable(t) == "map" then
+                 -- error("array expected", 3)
+                 return
               end
+              return table.move(s, sp, tp, n, t)
+          end
+          local __rawset = function(t, ...)
+            if getmetatable(t) ~= "null" then
+              return rawset(t, ...)
             end
+          end
+          local __rawget = function(t, ...)
+            if getmetatable(t) ~= "null" then
+              return rawget(t, ...)
+            end
+          end
 
-            if not table.find then
-              function table.find(t, value, start_index)
-                local si = start_index or 1
-                for i = si, #t do
-                  if t[i] == value then
-                    return i
-                  end
+          __table.isnull = function(t)
+            return getmetatable(t) == "null"
+          end
+
+          __table.ismap = function(t)
+            return getmetatable(t) == "map"
+          end
+
+          __table.isarray = function(t)
+            return getmetatable(t) == "array"
+          end
+
+          -- Aggiungi table.find se non esiste
+          if not table.find then
+            __table.find = function(t, value, start_index)
+              local si = start_index or 1
+              for i = si, #t do
+                if t[i] == value then
+                  return i
                 end
-                return nil
               end
+              return nil
             end
+          else
+            __table.find = table.find
+          end
 
-            if not table.find_value then
-              function table.find_key(t, key)
-                for k, v in pairs(t) do
-                  if k == key then
-                    return v
-                  end
-                end
-                return nil
+          __table.find_key = function(t, key)
+            for k, v in pairs(t) do
+              if k == key then
+                return v
               end
             end
+            return nil
+          end
 
-            if not table.find_key then
-              function table.find_key(t, value)
-                for k, v in pairs(t) do
-                  if v == value then
-                    return k
-                  end
-                end
-                return nil
+          __table.find_key = function(t, value)
+            for k, v in pairs(t) do
+              if v == value then
+                return k
               end
             end
+            return nil
+          end
 
-            if not string.split then
-              function string.split(s, pattern)
-                local t = {}
+          -- Aggiungi string.split se non esiste
+          if not string.split then
+            string.split = function(s, pattern)
+              local t = {}
 
-                -- Se non è specificato un pattern, usa il default per le
-                -- parole
-                if not pattern then
-                  for m in string.gmatch(s, "%S+") do
-                    table.insert(t, m)
-                  end
-                  return t
+              -- Se non è specificato un pattern, usa il default per le
+              -- parole
+              if not pattern then
+                for m in string.gmatch(s, "%S+") do
+                  table.insert(t, m)
                 end
-
-                -- Se il pattern è un singolo carattere (non regex),
-                -- usa la logica del separatore
-                if #pattern == 1 and pattern:match("^[%w%p%s]$") then
-                  for m in string.gmatch(s, "([^" .. pattern:gsub("[%(%)%.%+%-%*%?%[%]%^%$%%]", "%%%1") .. "]+)") do
-                    if m ~= "" then  -- evita stringhe vuote
-                      table.insert(t, m)
-                    end
-                  end
-                else
-                  -- Per pattern regex complessi, usa direttamente il pattern
-                  for m in string.gmatch(s, pattern) do
-                    table.insert(t, m)
-                  end
-                end
-
                 return t
               end
-            end
 
-            safe_env = {
-              assert = assert,
-              pairs = pairs,
-              ipairs = ipairs,
-              next = next,
-              type = type,
-              tostring = tostring,
-              tonumber = tonumber,
-              string = string,
-              math = math,
-              table = table,
-              print = print,
-              regex = regex,
-              null = null,
-              array = array,
-              map = map,
-            }
-
-            function eval_safe(code)
-              local f, e = load(code, "config", "t", safe_env)
-              if not f then
-                print(e)
-                return nil
+              -- Se il pattern è un singolo carattere (non regex),
+              -- usa la logica del separatore
+              if #pattern == 1 and pattern:match("^[%w%p%s]$") then
+                for m in string.gmatch(s, "([^" .. pattern:gsub("[%(%)%.%+%-%*%?%[%]%^%$%%]", "%%%1") .. "]+)") do
+                  if m ~= "" then  -- evita stringhe vuote
+                    table.insert(t, m)
+                  end
+                end
+              else
+                -- Per pattern regex complessi, usa direttamente il pattern
+                for m in string.gmatch(s, pattern) do
+                  table.insert(t, m)
+                end
               end
-              f()
-              return safe_env.f
+
+              return t
             end
+          end
+
+          safe_env = {
+            assert = assert,
+            pairs = pairs,
+            ipairs = ipairs,
+            next = next,
+            type = type,
+            tostring = tostring,
+            tonumber = tonumber,
+            string = string,
+            math = math,
+            table = __table,
+            print = print,
+            regex = regex,
+            null = null,
+            map = map,
+            array = array,
+          }
+
+          -- Funzione per valutare codice in ambiente sicuro
+          eval_safe = function(code)
+            local f, e = load(code, "config", "t", safe_env)
+            if not f then
+              print("Error loading code: " .. tostring(e))
+              return nil
+            end
+            f()
+            local success, result = pcall(f)
+            if not success then
+              print("Error executing code: " .. tostring(result))
+              return nil
+            end
+            return safe_env.f
+          end
         """)
 
         return lua
