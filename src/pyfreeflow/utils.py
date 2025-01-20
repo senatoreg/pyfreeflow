@@ -226,7 +226,7 @@ class SecureXMLParser:
                 # Se già esiste, trasforma in lista
                 if not isinstance(children[child_tag], list):
                     children[child_tag] = [children[child_tag]]
-                    children[child_tag].append(child_dict)
+                children[child_tag].append(child_dict)
             else:
                 children[child_tag] = child_dict
 
