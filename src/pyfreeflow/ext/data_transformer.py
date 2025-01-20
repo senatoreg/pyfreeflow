@@ -153,36 +153,28 @@ class DataTransformerV1_0(FreeFlowExt):
           __table.unpack = table.unpack
           __table.pack = table.pack
           __table.insert = function(t, ...)
-            if getmetatable(t) == "null" or
-              getmetatable(t) == "map" then
-               -- error("array expected", 3)
-               return
+            if getmetatable(t) ~= "array" then
+              error("array expected", 3)
             end
             return table.insert(t, ...)
           end
           __table.remove = function(t, ...)
-            if getmetatable(t) == "null" or
-              getmetatable(t) == "map" then
-               -- error("array expected", 3)
-               return
+            if getmetatable(t) ~= "array" then
+              error("array expected", 3)
             end
             return table.remove(t, ...)
           end
           __table.concat = function(t, ...)
-              if getmetatable(t) == "null" or
-                getmetatable(t) == "map" then
-                 -- error("array expected", 3)
-                 return
-              end
-              return table.concat(t, ...)
+            if getmetatable(t) ~= "array" then
+              error("array expected", 3)
+            end
+            return table.concat(t, ...)
           end
           __table.move = function(s, sp, tp, n, t)
-              if getmetatable(t) == "null" or
-                getmetatable(t) == "map" then
-                 -- error("array expected", 3)
-                 return
-              end
-              return table.move(s, sp, tp, n, t)
+            if getmetatable(t) ~= "array" then
+              error("array expected", 3)
+            end
+            return table.move(s, sp, tp, n, t)
           end
           local __rawset = function(t, ...)
             if getmetatable(t) ~= "null" then
@@ -195,7 +187,7 @@ class DataTransformerV1_0(FreeFlowExt):
             end
           end
 
-          __table.isnull = function(t)
+          local isnull = function(t)
             return getmetatable(t) == "null"
           end
 
@@ -288,6 +280,7 @@ class DataTransformerV1_0(FreeFlowExt):
             print = print,
             regex = regex,
             null = null,
+            isnull = isnull,
             map = map,
             array = array,
           }
