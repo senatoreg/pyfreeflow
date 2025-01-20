@@ -153,7 +153,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 0)
 
         except aiohttp.ClientError as ex:
-            self._logger.error("aiohttp request error %s", ex)
+            self._logger.error("aiohttp request %s error: %s", url, ex)
             return (
                 {"req": {}, "headers": {}, "body": {}}, 101)
         except asyncio.exceptions.TimeoutError as ex:
