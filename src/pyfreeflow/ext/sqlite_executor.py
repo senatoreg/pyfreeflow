@@ -1,4 +1,5 @@
 from .types import FreeFlowExt
+import re
 import aiosqlite
 import asyncio
 import logging
@@ -15,6 +16,10 @@ class ConnectionPool():
     POOL = {}
     LOCK = asyncio.Lock()
     LOGGER = logging.getLogger(".".join([__name__, "ConnectionPool"]))
+
+    @classmethod
+    def __regexp__(cls, pattern, item):
+        return re.search(pattern, item) is not None
 
     @classmethod
     def register(cls, client_name, conninfo, max_size=4):
@@ -67,7 +72,10 @@ class ConnectionPool():
             raise ex
 
         conninfo = cls.CLIENT[client_name]["conninfo"]
-        return await aiosqlite.connect(**conninfo)
+
+        db = await aiosqlite.connect(**conninfo)
+        await db.create_function("REGEXP", 2, cls.__regexp__)
+        return db
 
     @classmethod
     async def release(cls, client_name, conn):
