@@ -115,7 +115,7 @@ class SqLiteExecutorV1_0(FreeFlowExt):
                  max_connections=4, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
-        self._conninfo = {"database": path}
+        self._conninfo = {"database": EnvVarParser.parse(path)}
         for k, v in param.items():
             self._conninfo[k] = EnvVarParser.parse(v)
 
