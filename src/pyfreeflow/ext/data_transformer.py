@@ -4,7 +4,7 @@ import datetime as dt
 import xxhash
 from decimal import Decimal
 from cryptography.fernet import Fernet
-from ..utils import deepupdate, DurationParser, EnvVarParser
+from ..utils import deepupdate, DurationParser, EnvVarParser, DateParser
 
 try:
     import lupa.luajit21 as lupa
@@ -43,6 +43,7 @@ class DataTransformerV1_0(FreeFlowExt):
         self._env.globals().safe_env["xxh3_128"] = xxhash.xxh3_128_hexdigest
         self._env.globals().safe_env["now"] = self._dt_now_ts
         self._env.globals().safe_env["timedelta"] = self._dt_delta_ts
+        self._env.globals().safe_env["parsedatetime"] = self._dt_parsedt_ts
 
         if secret is not None:
             with open(EnvVarParser.parse(secret), "rb") as f:
@@ -133,24 +134,6 @@ class DataTransformerV1_0(FreeFlowExt):
             __metatable = "map",
           }
 
-          local null = setmetatable({}, null_mt)
-          local array = function(t)
-            if type(t) == "table" then
-              local self = {}
-              for i, d in ipairs(t) do
-                table.insert(self, d)
-              end
-              return setmetatable(self, array_mt)
-            end
-            return setmetatable({}, array_mt)
-          end
-          local map = function(t)
-            if type(t) == "table" then
-              return setmetatable(t, map_mt)
-            end
-            return setmetatable({}, map_mt)
-          end
-
           local __table = {}
           __table.sort = table.sort
           __table.maxn = table.maxn
@@ -229,15 +212,33 @@ class DataTransformerV1_0(FreeFlowExt):
               return nil
             end
 
+          local null = setmetatable({}, null_mt)
+          local array = function(t)
+            if type(t) == "table" then
+              local self = setmetatable({}, array_mt)
+              for i, d in ipairs(t) do
+                __table.insert(self, d)
+              end
+              return self
+            end
+            return setmetatable({}, array_mt)
+          end
+          local map = function(t)
+            if type(t) == "table" then
+              return setmetatable(t, map_mt)
+            end
+            return setmetatable({}, map_mt)
+          end
+
           -- Aggiungi string.split se non esiste
           string.esplit = function(s, pattern)
-            local t = {}
+            local t = array()
 
             -- Se non è specificato un pattern, usa il default per le
             -- parole
             if not pattern then
               for m in string.gmatch(s, "%S+") do
-                table.insert(t, m)
+                __table.insert(t, m)
               end
               return t
             end
@@ -247,13 +248,13 @@ class DataTransformerV1_0(FreeFlowExt):
             if #pattern == 1 and pattern:match("^[%w%p%s]$") then
               for m in string.gmatch(s, "([^" .. pattern:gsub("[%(%)%.%+%-%*%?%[%]%^%$%%]", "%%%1") .. "]+)") do
                 if m ~= "" then  -- evita stringhe vuote
-                  table.insert(t, m)
+                  __table.insert(t, m)
                 end
               end
             else
               -- Per pattern regex complessi, usa direttamente il pattern
               for m in string.gmatch(s, pattern) do
-                table.insert(t, m)
+                __table.insert(t, m)
               end
             end
 
@@ -298,6 +299,12 @@ class DataTransformerV1_0(FreeFlowExt):
         """)
 
         return lua
+
+    def _dt_parsedt_ts(self, a, fmt=None):
+        if fmt is None:
+            d = DateParser.parse_date(a)
+        d = DateParser.parse_date(a, fmt=[fmt])
+        return d * 1000000 if d is not None else None
 
     def _dt_now_ts(self):
         return dt.datetime.now(dt.timezone.utc).timestamp() * 1000000
