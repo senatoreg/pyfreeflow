@@ -287,7 +287,7 @@ class DataTransformerV1_0(FreeFlowExt):
 
           -- Funzione per valutare codice in ambiente sicuro
           eval_safe = function(code)
-            local f, e = load(code, "config", "t", safe_env)
+            local f, e = load(code, "safenv", "t", safe_env)
             if not f then
               print("Error loading code: " .. tostring(e))
               return nil
