@@ -103,7 +103,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
         return {k: str(v) for k, v in x.items()} if x is not None else x
 
     async def _do_request(self, method, url, headers=None, params=None,
-                          data=None):
+                          data=None, userdata=None):
         try:
             await self._ensure_session()
 
@@ -114,21 +114,24 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 if resp.status >= 400:
                     self._logger.error(f"'{url}' response code {resp.status}")
                     return (
-                        {"req": {}, "headers": {}, "body": {}}, 102)
+                        {"req": {}, "userdata": userdata, "headers": {},
+                         "body": {}}, 102)
 
                 content_length = int(resp.headers.get("Content-Length", 0))
                 if content_length > self._max_resp_size:
                     self._logger.error("response size %d exceeded max size %s",
                                        content_length, self._max_resp_size)
                     return (
-                        {"req": {}, "headers": {}, "body": {}}, 105)
+                        {"req": {}, "userdata": userdata, "headers": {},
+                         "body": {}}, 105)
 
                 raw = await resp.read()
                 if len(raw) > self._max_resp_size:
                     self._logger.error("real response size %d exceeded max size %s",
                                        content_length, self._max_resp_size)
                     return (
-                        {"req": {}, "headers": {}, "body": {}}, 105)
+                        {"req": {}, "userdata": userdata, "headers": {},
+                         "body": {}}, 105)
 
                 req_info = {k: self._multidict_to_dict(v)
                             for k, v in dict(resp._request_info._asdict()).items()}
@@ -145,21 +148,23 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 except Exception as ex:
                     self._logger.error("Exception in parsing content: %s", ex)
                     return (
-                        {"req": req_info, "headers": dict(resp.headers),
-                         "body": {}}, 106)
+                        {"req": req_info, "userdata": userdata,
+                         "headers": dict(resp.headers), "body": {}}, 106)
 
             return (
-                {"req": req_info, "headers": dict(resp.headers), "body": body},
-                0)
+                {"req": req_info, "userdata": userdata,
+                 "headers": dict(resp.headers), "body": body}, 0)
 
         except aiohttp.ClientError as ex:
             self._logger.error("aiohttp request %s error: %s", url, ex)
             return (
-                {"req": {}, "headers": {}, "body": {}}, 101)
+                {"req": {}, "userdata": userdata, "headers": {},
+                 "body": {}}, 101)
         except asyncio.exceptions.TimeoutError as ex:
             self._logger.error("aiohttp timeout on %s error %s", url, ex)
             return (
-                {"req": {}, "headers": {}, "body": {}}, 104)
+                {"req": {}, "userdata": userdata, "headers": {},
+                 "body": {}}, 104)
 
     async def _do_get(self, state, data):
         headers = self._headers | data.get("headers", {})
@@ -168,7 +173,8 @@ class RestApiRequesterV1_0(FreeFlowExt):
         query_params = data.get("body", {})
 
         return await self._do_request(
-            "GET", url, headers=headers, params=query_params)
+            "GET", url, headers=headers, params=query_params,
+            userdata=data.get("userdata"))
 
     async def _do_post(self, state, data):
         headers = self._headers | data.get("headers", {})
@@ -177,7 +183,8 @@ class RestApiRequesterV1_0(FreeFlowExt):
         body_bytes = json.dumps(data.get("body", {})).encode("utf-8")
 
         return await self._do_request("POST", url, headers=headers,
-                                      data=body_bytes)
+                                      data=body_bytes,
+                                      userdata=data.get("userdata"))
 
     async def do(self, state, data):
         if isinstance(data, dict):
