@@ -259,7 +259,6 @@ class DataTransformerV1_0(FreeFlowExt):
 
             return t
           end
-        end
 
           safe_env = {
             assert = assert,
