@@ -220,7 +220,7 @@ class DataTransformerV1_0(FreeFlowExt):
             __table.find = table.find
           end
 
-          __table.find_key = function(t, key)
+          __table.findkey = function(t, key)
             for k, v in pairs(t) do
               if k == key then
                 return v
@@ -229,7 +229,7 @@ class DataTransformerV1_0(FreeFlowExt):
             return nil
           end
 
-          __table.find_value = function(t, value)
+          __table.findval = function(t, value)
             for k, v in pairs(t) do
               if v == value then
                 return k
