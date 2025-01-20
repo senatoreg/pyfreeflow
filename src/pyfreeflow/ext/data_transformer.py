@@ -115,11 +115,17 @@ class DataTransformerV1_0(FreeFlowExt):
               if type(key) ~= "number" then
                 error("index value must be a number", 2)
               end
+              if key < 1 then
+                error("index value must greater than 0", 2)
+              end
               rawset(t, key, value)
             end,
             __usedindex = function(t, key, value)
               if type(key) ~= "number" then
                 error("index value must be a number", 2)
+              end
+              if key < 1 then
+                error("index value must greater than 0", 2)
               end
               rawset(t, key, value)
             end
