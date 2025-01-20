@@ -160,8 +160,7 @@ class SqLiteExecutorV1_0(FreeFlowExt):
             await conn.close()
         except aiosqlite.Error as ex:
             rc = 102
-            if not conn.closed:
-                await conn.rollback()
+            await conn.rollback()
             self._logger.error(ex)
         finally:
             await ConnectionPool.release(self._name, conn)
