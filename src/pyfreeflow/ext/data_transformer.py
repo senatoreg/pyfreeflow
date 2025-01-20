@@ -70,6 +70,30 @@ class DataTransformerV1_0(FreeFlowExt):
         lua = lupa.LuaRuntime(unpack_returned_tuples=True)
 
         lua.execute("""
+          local serialize
+          serialize = function(tbl)
+            local toprint = "{"
+            for k, v in pairs(tbl) do
+              toprint = toprint .. " "
+              if (type(k) == "number") then
+                toprint = toprint .. "[" .. k .. "] = "
+              elseif (type(k) == "string") then
+                toprint = toprint  .. k ..  "= "
+              end
+              if (type(v) == "number") then
+                toprint = toprint .. v .. ", "
+              elseif (type(v) == "string") then
+                toprint = toprint .. "\\"" .. v .. "\\", "
+              elseif (type(v) == "table") then
+                toprint = toprint .. serialize(v) .. ", "
+              else
+                toprint = toprint .. "\\"" .. tostring(v) .. "\\", "
+              end
+            end
+            toprint = toprint .. "}"
+            return toprint
+          end
+
           local dummy = function(...) end
 
           local regex = {
@@ -85,7 +109,7 @@ class DataTransformerV1_0(FreeFlowExt):
             __usedindex = function(t, key, value) end
           }
 
-          local array_mt = {
+          array_mt = {
             __metatable = "array",
             __newindex = function(t, key, value)
               if type(key) ~= "number" then
@@ -101,7 +125,7 @@ class DataTransformerV1_0(FreeFlowExt):
             end
           }
 
-          local map_mt = {
+          map_mt = {
             __metatable = "map",
           }
 
@@ -260,6 +284,7 @@ class DataTransformerV1_0(FreeFlowExt):
             string = string,
             math = math,
             table = __table,
+            serialize = serialize,
             print = print,
             regex = regex,
             null = null,
@@ -303,7 +328,7 @@ class DataTransformerV1_0(FreeFlowExt):
 
     def _lua_to_py(self, a):
         if lupa.lua_type(a) == "table":
-            if self._lua_null_to_none(a):
+            if self._env.globals().getmetatable(a) == "null":
                 return None
             elif self._env.globals().getmetatable(a) == "array":
                 return [self._lua_to_py(v) for v in a.values()]
@@ -316,15 +341,14 @@ class DataTransformerV1_0(FreeFlowExt):
 
     def _py_to_lua(self, a):
         if isinstance(a, dict):
-            t = self._env.table_from({k: self._py_to_lua(v) for k, v in a.items()},
-                                     recursive=True)
-            self._env.globals().setmetatable(t, self._env.table_from(
-                {"__metatable": self._env.globals()["map_mt"]}))
+            t = self._env.table_from({k: self._py_to_lua(v) for k, v in a.items()})
+            self._env.globals().setmetatable(
+                t, self._env.globals()["map_mt"])
             return t
         elif isinstance(a, (list, tuple)):
-            li = self._env.table_from([self._py_to_lua(v) for v in a], recursive=True)
-            self._env.globals().setmetatable(li, self._env.table_from({
-                "__metatable": self._env.globals()["array_mt"]}))
+            li = self._env.table_from([self._py_to_lua(v) for v in a])
+            self._env.globals().setmetatable(
+                li, self._env.globals()["array_mt"])
             return li
         elif isinstance(a, Decimal):
             return float(a)
