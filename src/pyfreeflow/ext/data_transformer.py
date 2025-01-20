@@ -1,6 +1,7 @@
 from .types import FreeFlowExt
 import logging
 import datetime as dt
+import xxhash
 from decimal import Decimal
 from cryptography.fernet import Fernet
 from ..utils import deepupdate, DurationParser, EnvVarParser
@@ -32,25 +33,22 @@ class DataTransformerV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name, transformer="", lua_func=[], secret=None,
-                 force=False, max_tasks=4):
+    def __init__(self, name, transformer="", secret=None, force=False,
+                 max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
         self._force = force
         self._env = self._create_safe_lua_env()
 
+        self._env.globals().safe_env["xxh3_64"] = xxhash.xxh3_64_hexdigest
+        self._env.globals().safe_env["xxh3_128"] = xxhash.xxh3_128_hexdigest
         self._env.globals().safe_env["now"] = self._dt_now_ts
         self._env.globals().safe_env["timedelta"] = self._dt_delta_ts
-        self._env.globals().safe_env["dict"] = dict
-        self._env.globals().safe_env["list"] = list
 
         if secret is not None:
             with open(EnvVarParser.parse(secret), "rb") as f:
                 self._cipher = Fernet(f.read())
             self._env.globals().safe_env["encrypt"] = self._encrypt
             self._env.globals().safe_env["decrypt"] = self._decrypt
-
-        for _name, _func in lua_func:
-            self._env.globals().safe_env[_name] = _func
 
         self._transformer = self._env.globals().eval_safe(
             "\n".join(["function f(state, data)",
@@ -206,70 +204,62 @@ class DataTransformerV1_0(FreeFlowExt):
           end
 
           -- Aggiungi table.find se non esiste
-          if not table.find then
             __table.find = function(t, value, start_index)
-              local si = start_index or 1
-              for i = si, #t do
-                if t[i] == value then
-                  return i
+              if getmetatable(t) == "array" then
+                local si = start_index or 1
+
+                if type(si) ~= "number" or si < 1 then
+                  error("start_index must be a number greater than 0", 2)
                 end
-              end
-              return nil
-            end
-          else
-            __table.find = table.find
-          end
 
-          __table.findkey = function(t, key)
-            for k, v in pairs(t) do
-              if k == key then
-                return v
-              end
-            end
-            return nil
-          end
-
-          __table.findval = function(t, value)
-            for k, v in pairs(t) do
-              if v == value then
-                return k
-              end
-            end
-            return nil
-          end
-
-          -- Aggiungi string.split se non esiste
-          if not string.split then
-            string.split = function(s, pattern)
-              local t = {}
-
-              -- Se non è specificato un pattern, usa il default per le
-              -- parole
-              if not pattern then
-                for m in string.gmatch(s, "%S+") do
-                  table.insert(t, m)
-                end
-                return t
-              end
-
-              -- Se il pattern è un singolo carattere (non regex),
-              -- usa la logica del separatore
-              if #pattern == 1 and pattern:match("^[%w%p%s]$") then
-                for m in string.gmatch(s, "([^" .. pattern:gsub("[%(%)%.%+%-%*%?%[%]%^%$%%]", "%%%1") .. "]+)") do
-                  if m ~= "" then  -- evita stringhe vuote
-                    table.insert(t, m)
+                for i = si, #t do
+                  if t[i] == value then
+                    return i
                   end
                 end
+
               else
-                -- Per pattern regex complessi, usa direttamente il pattern
-                for m in string.gmatch(s, pattern) do
-                  table.insert(t, m)
+                for k, v in pairs(t) do
+                  if v == value then
+                    return k
+                  end
                 end
               end
 
+              return nil
+            end
+
+          -- Aggiungi string.split se non esiste
+          string.esplit = function(s, pattern)
+            local t = {}
+
+            -- Se non è specificato un pattern, usa il default per le
+            -- parole
+            if not pattern then
+              for m in string.gmatch(s, "%S+") do
+                table.insert(t, m)
+              end
               return t
             end
+
+            -- Se il pattern è un singolo carattere (non regex),
+            -- usa la logica del separatore
+            if #pattern == 1 and pattern:match("^[%w%p%s]$") then
+              for m in string.gmatch(s, "([^" .. pattern:gsub("[%(%)%.%+%-%*%?%[%]%^%$%%]", "%%%1") .. "]+)") do
+                if m ~= "" then  -- evita stringhe vuote
+                  table.insert(t, m)
+                end
+              end
+            else
+              -- Per pattern regex complessi, usa direttamente il pattern
+              for m in string.gmatch(s, pattern) do
+                table.insert(t, m)
+              end
+            end
+
+            return t
           end
+        end
 
           safe_env = {
             assert = assert,
