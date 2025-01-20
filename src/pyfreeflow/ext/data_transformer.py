@@ -71,27 +71,27 @@ class DataTransformerV1_0(FreeFlowExt):
 
         lua.execute("""
           local serialize
-          serialize = function(tbl)
-            local toprint = "{"
-            for k, v in pairs(tbl) do
-              toprint = toprint .. " "
+          serialize = function(t)
+            local str = "{"
+            for k, v in pairs(t) do
+              str = str .. " "
               if (type(k) == "number") then
-                toprint = toprint .. "[" .. k .. "] = "
+                str = str .. "[" .. k .. "] = "
               elseif (type(k) == "string") then
-                toprint = toprint  .. k ..  "= "
+                str = str  .. k ..  "= "
               end
               if (type(v) == "number") then
-                toprint = toprint .. v .. ", "
+                str = str .. v .. ", "
               elseif (type(v) == "string") then
-                toprint = toprint .. "\\"" .. v .. "\\", "
+                str = str .. "\\"" .. v .. "\\", "
               elseif (type(v) == "table") then
-                toprint = toprint .. serialize(v) .. ", "
+                str = str .. serialize(v) .. ", "
               else
-                toprint = toprint .. "\\"" .. tostring(v) .. "\\", "
+                str = str .. "\\"" .. tostring(v) .. "\\", "
               end
             end
-            toprint = toprint .. "}"
-            return toprint
+            str = str .. "}"
+            return str
           end
 
           local dummy = function(...) end
