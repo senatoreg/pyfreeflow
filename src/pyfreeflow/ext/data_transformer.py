@@ -298,20 +298,19 @@ class DataTransformerV1_0(FreeFlowExt):
     def _decrypt(self, value):
         return self._cipher.decrypt(value).decode("utf-8")
 
-    def _lua_nil_to_none(self, x):
+    def _lua_null_to_none(self, x):
         return str(x) == "null"
 
     def _lua_to_py(self, a):
         if lupa.lua_type(a) == "table":
-            if self._lua_nil_to_none(a):
+            if self._lua_null_to_none(a):
                 return None
-
-            if len(a) == 0:
-                return {k: self._lua_to_py(v) for k, v in a.items()}
-            elif all([isinstance(x, int) for x in a.keys()]):
+            elif self._env.globals().getmetatable(a) == "array":
                 return [self._lua_to_py(v) for v in a.values()]
+            elif self._env.globals().getmetatable(a) == "map":
+                return {k: self._lua_to_py(v) for k, v in a.items()}
             else:
-                return {}
+                return {k: self._lua_to_py(v) for k, v in a.items()}
         else:
             return a
 
@@ -320,12 +319,12 @@ class DataTransformerV1_0(FreeFlowExt):
             t = self._env.table_from({k: self._py_to_lua(v) for k, v in a.items()},
                                      recursive=True)
             self._env.globals().setmetatable(t, self._env.table_from(
-                {"__metatable": self._env.globals()["map_t"]}))
+                {"__metatable": self._env.globals()["map_mt"]}))
             return t
         elif isinstance(a, (list, tuple)):
             li = self._env.table_from([self._py_to_lua(v) for v in a], recursive=True)
             self._env.globals().setmetatable(li, self._env.table_from({
-                "__metatable": self._env.globals()["array_t"]}))
+                "__metatable": self._env.globals()["array_mt"]}))
             return li
         elif isinstance(a, Decimal):
             return float(a)
