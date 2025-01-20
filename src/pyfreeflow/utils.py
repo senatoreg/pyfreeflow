@@ -257,7 +257,9 @@ class SecureXMLParser:
             root = lxml.etree.fromstring(xml_string.encode('utf-8'),
                                          self.parser)
             for comment in root.xpath("//comment()"):
-                comment.getparent().remove(comment)
+                parent = comment.getparent()
+                if parent is not None:
+                    comment.getparent().remove(comment)
             self._nsmap = root.nsmap
             self._mapns = {v: k for k, v in self._nsmap.items()}
             # return {lxml.etree.QName(root).localname: self._element_to_dict(root)}
@@ -282,7 +284,9 @@ class SecureXMLParser:
         try:
             root = lxml.etree.fromstring(xml_bytes, self.parser)
             for comment in root.xpath("//comment()"):
-                comment.getparent().remove(comment)
+                parent = comment.getparent()
+                if parent is not None:
+                    comment.getparent().remove(comment)
             self._nsmap = root.nsmap
             self._mapns = {v: k for k, v in self._nsmap.items()}
             # return {lxml.etree.QName(root).localname: self._element_to_dict(root)}
