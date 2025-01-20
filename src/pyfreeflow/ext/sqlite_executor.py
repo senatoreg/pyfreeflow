@@ -157,6 +157,7 @@ class SqLiteExecutorV1_0(FreeFlowExt):
                     rs["resultset"] = await cur.fetchall()
 
             await conn.commit()
+            await conn.close()
         except aiosqlite.Error as ex:
             rc = 102
             if not conn.closed:
