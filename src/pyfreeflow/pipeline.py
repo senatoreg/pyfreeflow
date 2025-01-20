@@ -62,6 +62,12 @@ class Pipeline():
 
         self._tree = list(nx.topological_sort(self._G))
 
+    def __del__(self):
+        keys = [x for x in self._registry.keys()]
+        for k in keys:
+            cls = self._registry.pop(k)
+            del cls
+
     async def _cleanup(self):
         t = self._state
         self._state = {}
