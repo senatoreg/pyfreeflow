@@ -76,6 +76,99 @@ class DataTransformerV1_0(FreeFlowExt):
               end
             }
 
+            local null_t = {
+              __metatable = "null",
+              __tostring = function() return "null" end,
+              __newindex = function(t, key, value) end,
+              __usedindex = function(t, key, value) end
+            }
+
+            local array_t = {
+              __metatable = "array",
+              __newindex = function(t, key, value)
+                if type(key) ~= "number" then
+                  error("index value must be a number", 2)
+                end
+                rawset(t, key, value)
+              end,
+              __usedindex = function(t, key, value)
+                if type(key) ~= "number" then
+                  error("index value must be a number", 2)
+                end
+                rawset(t, key, value)
+              end
+            }
+
+            local map_t = {
+              __metatable = "map",
+            }
+
+            null = setmetatable({}, null_t)
+            array = function()
+                return setmetatable({}, array_t)
+            end
+            map = function()
+                return setmetatable({}, map_t)
+            end
+
+            local __table = {}
+
+            -- Sostituisci le funzioni di table per proteggere null
+            __table.insert = table.insert
+            table.insert = function(t, ...)
+                if getmetatable(t) ~= "null" and getmetatable(t) ~= "map" then
+                    return __table.insert(t, ...)
+                end
+            end
+            __table.remove = table.remove
+            table.remove = function(t, ...)
+                if getmetatable(t) ~= "null" and getmetatable(t) ~= "map" then
+                    return __table.remove(t, ...)
+                end
+            end
+            __table.concat = table.concat
+            table.concat = function(t, ...)
+                if getmetatable(t) ~= "null" then
+                    return __table.concat(t, ...)
+                end
+            end
+            __table.move = table.move
+            table.move = function(s, sp, tp, n, t)
+                if s~= null and getmetatable(t) ~= "null" then
+                    return __table.move(s, sp, tp, n, t)
+                end
+            end
+            __table.rawset = table.rawset
+            table.rawset = function(t, ...)
+                if getmetatable(t) ~= "null" then
+                    return __table.rawset(t, ...)
+                end
+            end
+            __table.rawget = table.rawget
+            table.rawget = function(t, ...)
+                if getmetatable(t) ~= "null" then
+                    return __table.rawget(t, ...)
+                end
+            end
+
+            if not table.null then
+              function table.isnull(t)
+                return getmetatable(t) == "null"
+              end
+            end
+
+            if not table.ismap then
+              function table.ismap(t)
+                return getmetatable(t) == "map"
+              end
+            end
+
+            if not table.isarray then
+              function table.isarray(t)
+                return getmetatable(t) == "array"
+              end
+            end
+
             if not table.find then
               function table.find(t, value, start_index)
                 local si = start_index or 1
@@ -155,8 +248,9 @@ class DataTransformerV1_0(FreeFlowExt):
               table = table,
               print = print,
               regex = regex,
-              lookup_object_by_key = lookup_object_by_key,
-              NIL = setmetatable({},{__tostring=function() return "nil" end}),
+              null = null,
+              array = array,
+              map = map,
             }
 
             function eval_safe(code)
@@ -185,7 +279,7 @@ class DataTransformerV1_0(FreeFlowExt):
         return self._cipher.decrypt(value).decode("utf-8")
 
     def _lua_nil_to_none(self, x):
-        return str(x) == "nil"
+        return str(x) == "null"
 
     def _lua_to_py(self, a):
         if lupa.lua_type(a) == "table":
@@ -203,13 +297,20 @@ class DataTransformerV1_0(FreeFlowExt):
 
     def _py_to_lua(self, a):
         if isinstance(a, dict):
-            return self._env.table_from({k: self._py_to_lua(v) for k, v in a.items()})
+            t = self._env.table_from({k: self._py_to_lua(v) for k, v in a.items()},
+                                     recursive=True)
+            self._env.globals().setmetatable(t, self._env.table_from(
+                {"__metatable": self._env.globals()["map_t"]}))
+            return t
         elif isinstance(a, (list, tuple)):
-            return self._env.table_from([self._py_to_lua(v) for v in a])
+            li = self._env.table_from([self._py_to_lua(v) for v in a], recursive=True)
+            self._env.globals().setmetatable(li, self._env.table_from({
+                "__metatable": self._env.globals()["array_t"]}))
+            return li
         elif isinstance(a, Decimal):
             return float(a)
         elif a is None:
-            return self._env.globals().safe_env['NIL']
+            return self._env.globals().safe_env['null']
         else:
             return a
 
