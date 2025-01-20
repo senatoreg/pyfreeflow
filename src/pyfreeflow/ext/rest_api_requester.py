@@ -165,6 +165,11 @@ class RestApiRequesterV1_0(FreeFlowExt):
             return (
                 {"req": {}, "userdata": userdata, "headers": {},
                  "body": {}}, 104)
+        except Exception as ex:
+            self._logger.error("aiohttp request %s error: %s", url, ex)
+            return (
+                {"req": req_info, "userdata": userdata,
+                 "headers": dict(resp.headers), "body": {}}, 106)
 
     async def _do_get(self, state, data):
         headers = self._headers | data.get("headers", {})
