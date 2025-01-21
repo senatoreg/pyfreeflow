@@ -532,7 +532,9 @@ class DateParser():
 
     COMMON_DATETIME_FORMAT = [
         "%a, %d %b %Y %H:%M:%S %z",
-        "%Y-%m-%dT%H:%M:%SZ",
+        "%a, %d %b %Y %H:%M:%S %Z",
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M:%S%Z",
     ]
 
     @classmethod
