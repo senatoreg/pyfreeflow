@@ -234,14 +234,13 @@ class DataTransformerV1_0(FreeFlowExt):
                 c = string.sub(subs, i, i)
                 if c == "'" and not dquote and p ~= "\\\\\" then
                   squote = not squote
-                  if not keepqmark then goto skipqmark end
-                end
-                if c == "\\"" and not squote and p ~= "\\\\\" then
+                  if keepqmark then buf = buf .. c end
+                elseif c == "\\"" and not squote and p ~= "\\\\\" then
                   dquote = not dquote
-                  if not keepqmark then goto skipqmark end
+                  if keepqmark then buf = buf .. c end
+                elseif c ~= "\\\\" or p == "\\\\" then
+                  buf = buf .. c
                 end
-                buf = buf .. c
-                ::skipqmark::
               end
 
               if squote or dquote then
