@@ -47,8 +47,17 @@ class DataTransformerV1_0(FreeFlowExt):
         self._env.globals().safe_env["now"] = self._dt_now_ts
         self._env.globals().safe_env["timedelta"] = self._dt_delta_ts
         self._env.globals().safe_env["parsedatetime"] = self._dt_parsedt_ts
-        self._env.globals().safe_env["fromjson"] = self._fromjson
-        self._env.globals().safe_env["tojson"] = self._tojson
+        self._env.globals().safe_env["json"] = self._py_to_lua({
+            "to": self._tojson,
+            "from": self._fromjson,
+        })
+        self._env.globals().safe_env["logger"] = self._py_to_lua({
+            "error": lambda a: self._logger.error(self._lua_to_py(a)),
+            "warning": lambda a: self._logger.warning(self._lua_to_py(a)),
+            "info": lambda a: self._logger.info(self._lua_to_py(a)),
+            "debug": lambda a: self._logger.debug(self._lua_to_py(a)),
+            "critical": lambda a: self._logger.critical(self._lua_to_py(a)),
+        })
 
         if secret is not None:
             with open(EnvVarParser.parse(secret), "rb") as f:
