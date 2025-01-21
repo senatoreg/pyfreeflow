@@ -273,6 +273,8 @@ class SecureXMLParser:
                 for comment in root.xpath("//comment()"):
                     parent = comment.getparent()
                     if parent is not None:
+                        elem = lxml.etree.SubElement(parent, "comment")
+                        elem.text = comment.text
                         comment.getparent().remove(comment)
             # nsmap = root.nsmap
             # mapns = {v: k for k, v in nsmap.items()}
@@ -334,7 +336,10 @@ class SecureXMLParser:
             return a
 
         if len(b) > 0:
-            return cls.get_elem(a.get("elem", {}).get(b[0]), b[1:], c)
+            if isinstance(a, list):
+                return [cls.get_elem(x, b, c) for x in a]
+            else:
+                return cls.get_elem(a.get("elem", {}).get(b[0]), b[1:], c)
 
         if isinstance(a, list):
             return [x.get(c) if c is not None else x for x in a]

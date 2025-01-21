@@ -313,8 +313,16 @@ class DataTransformerV1_0(FreeFlowExt):
             if isnull(a) then return null end
 
             if #b > 0 then
-              local e = a.elem and a.elem[b[1]] or map()
-              return securexmlparser.getelem(e, __table.tail(b, 2), c)
+              if __table.isarray(a) then
+                local r = array()
+                for i, d in ipairs(a) do
+                  __table.insert(r, securexmlparser.getelem(d, b, c))
+                end
+                return r
+              else
+                local e = a.elem and a.elem[b[1]] or map()
+                return securexmlparser.getelem(e, __table.tail(b, 2), c)
+              end
             end
 
             if __table.isarray(a) then
