@@ -69,30 +69,6 @@ class DataTransformerV1_0(FreeFlowExt):
         lua = lupa.LuaRuntime(unpack_returned_tuples=True)
 
         lua.execute("""
-          local serialize
-          serialize = function(t)
-            local str = "{"
-            for k, v in pairs(t) do
-              str = str .. " "
-              if (type(k) == "number") then
-                str = str .. "[" .. k .. "] = "
-              elseif (type(k) == "string") then
-                str = str  .. k ..  "= "
-              end
-              if (type(v) == "number") then
-                str = str .. v .. ", "
-              elseif (type(v) == "string") then
-                str = str .. "\\"" .. v .. "\\", "
-              elseif (type(v) == "table") then
-                str = str .. serialize(v) .. ", "
-              else
-                str = str .. "\\"" .. tostring(v) .. "\\", "
-              end
-            end
-            str = str .. "}"
-            return str
-          end
-
           local dummy = function(...) end
 
           local regex = {
@@ -187,30 +163,30 @@ class DataTransformerV1_0(FreeFlowExt):
           end
 
           -- Aggiungi table.find se non esiste
-            __table.find = function(t, value, start_index)
-              if getmetatable(t) == "array" then
-                local si = start_index or 1
+          __table.find = function(t, value, start_index)
+            if getmetatable(t) == "array" then
+              local si = start_index or 1
 
-                if type(si) ~= "number" or si < 1 then
-                  error("start_index must be a number greater than 0", 2)
-                end
+              if type(si) ~= "number" or si < 1 then
+                error("start_index must be a number greater than 0", 2)
+              end
 
-                for i = si, #t do
-                  if t[i] == value then
-                    return i
-                  end
-                end
-
-              else
-                for k, v in pairs(t) do
-                  if v == value then
-                    return k
-                  end
+              for i = si, #t do
+                if t[i] == value then
+                  return i
                 end
               end
 
-              return nil
+            else
+              for k, v in pairs(t) do
+                if v == value then
+                  return k
+                end
+              end
             end
+
+            return nil
+          end
 
           local null = setmetatable({}, null_mt)
           local array = function(t)
@@ -230,93 +206,87 @@ class DataTransformerV1_0(FreeFlowExt):
             return setmetatable({}, map_mt)
           end
 
-          string.qsplit = function(s, pattern)
+          __table.map = function(t, f)
+            local u = array()
+            for i, d in ipairs(t) do
+              u[i] = f(d)
+            end
+            return u
+          end
+
+          string.qsplit = function(s, pattern, keepqmark)
             pattern = pattern or "%s"
+            keepqmark = keepqmark ~= nil and keepqmark or false
             local squote = false
             local dquote = false
-
-            local buf = ""
             local t = array()
+            local buf = ""
+            local start = 1
 
-            -- Definiamo le variabili per il carattere precedente e
-            -- quello corrente
-            local p, c
+            while start <= #s do
+              local m, M = string.find(s, pattern, start)
+              local subs = string.sub(s, start, (m and m - 1 or nil))
+              local captured = string.sub(s, m or start, M or -1)
 
-            for i = 1, #s do
-              -- Salviamo il carattere precedente
-              p = c
-              -- Estraiamo il carattere corrente
-              c = string.sub(s, i, i)
-
-              -- Se il carattere è un singolo apice e non è già stato incontrato
-              -- un doppio apice precedentemente o il carattere precedente non
-              -- era un escape allora o sta iniziando un testo tra singoli apici
-              -- oppure sta terminando
-              if c == "'" and not dquote and p ~= "\\\\" then
-                squote = not squote
-                goto continue
-              end
-
-              -- Se il carattere è un doppio apice e non è già stato incontrato
-              -- un singolo apice precedentemente o il carattere precedente non
-              -- era un escape allora o sta iniziando un testo tra doppi apici
-              -- oppure sta terminando
-              if c == "\\"" and not squote and p ~= "\\\\" then
-                dquote = not dquote
-                goto continue
-              end
-
-              -- se il carattere corrente corrisponde al pattern se siamo tra
-              -- apici singoli o doppi concateniamo il carattere nel buffer
-              -- altrimenti inseriamolo nel risultato; se vicecersa non
-              -- corrisponde al pattern semplicemente concateniamolo
-              if string.match(c, pattern) then
-                if squote or dquote then
-                  buf = buf .. c
-                else
-                  table.insert(t, buf)
-                  buf = ""
+              local c, p
+              for i = 1, #subs do
+                p = c
+                c = string.sub(subs, i, i)
+                if c == "'" and not dquote and p ~= "\\\\\" then
+                  squote = not squote
+                  if not keepqmark then goto skipqmark end
                 end
-              elseif c ~= "\\\\" or p == "\\\\" then
+                if c == "\\"" and not squote and p ~= "\\\\\" then
+                  dquote = not dquote
+                  if not keepqmark then goto skipqmark end
+                end
                 buf = buf .. c
+                ::skipqmark::
               end
 
-            ::continue::
-            end
+              if squote or dquote then
+                buf = buf .. captured
+              else
+                __table.insert(t, buf)
+                buf = ""
+              end
 
-            -- Salviamo l'ultimo valore trovato prima di ritornare
-            table.insert(t, buf)
+              if not M then break end
+              start = M + 1
+            end
             return t
           end
 
           string.esplit = function(s, pattern)
-            local t = array()
+            return string.qsplit(s, pattern, true)
+          end
 
-            -- Se non è specificato un pattern, usa il default per le
-            -- parole
-            if not pattern then
-              for m in string.gmatch(s, "%S+") do
-                __table.insert(t, m)
+          local serialize
+          serialize = function(t)
+            local str = "{"
+            for k, v in pairs(t) do
+              str = str .. " "
+              if (type(k) == "number") then
+                str = str .. "[" .. k .. "] = "
+              elseif (type(k) == "string") then
+                str = str  .. k ..  "= "
               end
-              return t
-            end
-
-            -- Se il pattern è un singolo carattere (non regex),
-            -- usa la logica del separatore
-            if #pattern == 1 and pattern:match("^[%w%p%s]$") then
-              for m in string.gmatch(s, "([^" .. pattern:gsub("[%(%)%.%+%-%*%?%[%]%^%$%%]", "%%%1") .. "]+)") do
-                if m ~= "" then  -- evita stringhe vuote
-                  __table.insert(t, m)
+              if (type(v) == "number") then
+                str = str .. v .. ", "
+              elseif (type(v) == "string") then
+                str = str .. "\\"" .. v .. "\\", "
+              elseif (type(v) == "table") then
+                if isnull(v) then
+                  str = str .. tostring(v) .. ", "
+                else
+                  str = str .. serialize(v) .. ", "
                 end
-              end
-            else
-              -- Per pattern regex complessi, usa direttamente il pattern
-              for m in string.gmatch(s, pattern) do
-                __table.insert(t, m)
+              else
+                str = str .. "\\"" .. tostring(v) .. "\\", "
               end
             end
-
-            return t
+            str = str .. "}"
+            return str
           end
 
           safe_env = {
