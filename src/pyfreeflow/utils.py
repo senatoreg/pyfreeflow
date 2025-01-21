@@ -7,6 +7,7 @@ import datetime as dt
 import locale
 import dateutil
 import lxml.etree
+import lxml.html
 
 
 def deepupdate(base, other, keep=True):
@@ -113,10 +114,28 @@ class MimeTypeParser():
         re.IGNORECASE
     )
 
+    HTML_MIME_PATTERN = re.compile(
+        r'^(text)/([\w\.\-]+\+)?html($|;)',
+        re.IGNORECASE
+    )
+
     JSON_MIME_PATTERN = re.compile(
         r'^(application|text)/([\w\.\-]+\+)?json($|;)',
         re.IGNORECASE
     )
+
+    @classmethod
+    def is_html(cls, content_type: str) -> bool:
+        """
+        Verifica se il Content-Type è XML.
+
+        Args:
+        content_type: Header Content-Type
+
+        Returns:
+        True se è XML, False altrimenti
+        """
+        return bool(cls.HTML_MIME_PATTERN.match(content_type.lower()))
 
     @classmethod
     def is_xml(cls, content_type: str) -> bool:
@@ -151,43 +170,16 @@ class SecureXMLParser:
     Formato: {tag: {attrs: {}, text: "", children: {...}}}
     """
 
-    def __init__(self,
-                 max_size=10 * 1024 * 1024,  # 10MB default
-                 max_depth=100,
-                 resolve_entities=False,
-                 huge_tree=False,
-                 strip_whitespace=True):
-        """
-        Inizializza il parser con opzioni di sicurezza.
-
-        Args:
-            max_size: Dimensione massima del documento XML in bytes
-            max_depth: Profondità massima dell'albero XML
-            resolve_entities: Se risolvere le entità XML (False per sicurezza)
-            huge_tree: Se permettere alberi molto grandi (False per sicurezza)
-            strip_whitespace: Se rimuovere whitespace dai testi
-        """
-        self.max_size = max_size
-        self.max_depth = max_depth
-        self.strip_whitespace = strip_whitespace
-
-        # Parser configurato per sicurezza
-        self.parser = lxml.etree.XMLParser(
-            resolve_entities=resolve_entities,
-            huge_tree=huge_tree,
-            recover=False,  # Non recuperare da errori
-            no_network=True,  # Blocca accesso rete
-            remove_blank_text=strip_whitespace,
-            ns_clean=True,
-        )
-
-    def _validate_size(self, content):
+    @classmethod
+    def _validate_size(cls, content, max_size):
         """Valida la dimensione del contenuto."""
         size = len(content.encode('utf-8') if isinstance(content, str) else content)
-        if size > self.max_size:
-            raise ValueError(f"XML troppo grande: {size} bytes (max: {self.max_size})")
+        if size > max_size:
+            raise ValueError(f"XML troppo grande: {size} bytes (max: {max_size})")
 
-    def _element_to_dict(self, element, depth=0):
+    @classmethod
+    def _element_to_dict(cls, element, max_depth, strip_whitespace,
+                         depth=0):
         """
         Converte un elemento lxml in dizionario.
 
@@ -198,8 +190,8 @@ class SecureXMLParser:
         Returns:
             Dizionario con struttura personalizzata
         """
-        if depth > self.max_depth:
-            raise ValueError(f"XML troppo profondo: superata profondità massima di {self.max_depth}")
+        if depth > max_depth:
+            raise ValueError(f"XML troppo profondo: superata profondità massima di {max_depth}")
 
         # result = {}
 
@@ -208,12 +200,12 @@ class SecureXMLParser:
 
         # Testo dell'elemento
         text = element.text or None
-        if text is not None and self.strip_whitespace:
+        if text is not None and strip_whitespace:
             text = text.strip()
 
         # Testo dalla coda (tail)
         tail = element.tail or None
-        if tail is not None and self.strip_whitespace:
+        if tail is not None and strip_whitespace:
             tail = tail.strip()
 
         # Figli raggruppati per tag
@@ -222,7 +214,9 @@ class SecureXMLParser:
             # child_tag = child.tag
             # child_tag = lxml.etree.QName(child).localname
             child_tag = child.tag
-            child_dict = self._element_to_dict(child, depth + 1)
+            child_dict = cls._element_to_dict(child, max_depth,
+                                              strip_whitespace,
+                                              depth=depth + 1)
 
             if child_tag in children:
                 # Se già esiste, trasforma in lista
@@ -243,7 +237,14 @@ class SecureXMLParser:
 
         return element_data
 
-    def parse_string(self, xml_string):
+    @classmethod
+    def parse_string(cls, xml_string,
+                     max_size=10 * 1024 * 1024,  # 10MB default
+                     max_depth=100,
+                     resolve_entities=False,
+                     huge_tree=False,
+                     strip_whitespace=True,
+                     html=False):
         """
         Parse an XML string.
 
@@ -253,25 +254,44 @@ class SecureXMLParser:
         Returns:
             XML dict
         """
-        self._validate_size(xml_string)
+        cls._validate_size(xml_string, max_size)
 
         try:
-            root = lxml.etree.fromstring(xml_string.encode('utf-8'),
-                                         self.parser)
-            for comment in root.xpath("//comment()"):
-                parent = comment.getparent()
-                if parent is not None:
-                    comment.getparent().remove(comment)
-            self._nsmap = root.nsmap
-            self._mapns = {v: k for k, v in self._nsmap.items()}
+            if not html:
+                parser = lxml.etree.XMLParser(
+                    resolve_entities=resolve_entities,
+                    huge_tree=huge_tree,
+                    recover=False,  # Non recuperare da errori
+                    no_network=True,  # Blocca accesso rete
+                    remove_blank_text=strip_whitespace,
+                    ns_clean=True,
+                    remove_comments=True,
+                )
+                root = lxml.etree.fromstring(xml_string, parser)
+            else:
+                root = lxml.html.fromstring(xml_string)
+                for comment in root.xpath("//comment()"):
+                    parent = comment.getparent()
+                    if parent is not None:
+                        comment.getparent().remove(comment)
+            # nsmap = root.nsmap
+            # mapns = {v: k for k, v in nsmap.items()}
             # return {lxml.etree.QName(root).localname: self._element_to_dict(root)}
-            return {root.tag: self._element_to_dict(root)}
+            return {root.tag: cls._element_to_dict(root, max_depth,
+                                                   strip_whitespace)}
         except lxml.etree.XMLSyntaxError as e:
             raise ValueError(f"XML malformed: {e}")
         except Exception as e:
             raise RuntimeError(f"parsing error: {e}")
 
-    def parse_bytes(self, xml_bytes):
+    @classmethod
+    def parse_bytes(cls, xml_bytes,
+                    max_size=10 * 1024 * 1024,  # 10MB default
+                    max_depth=100,
+                    resolve_entities=False,
+                    huge_tree=False,
+                    strip_whitespace=True,
+                    html=False):
         """
         Parse bytes XML.
 
@@ -281,22 +301,45 @@ class SecureXMLParser:
         Returns:
             XML dict
         """
-        self._validate_size(xml_bytes)
+        cls._validate_size(xml_bytes, max_size)
 
         try:
-            root = lxml.etree.fromstring(xml_bytes, self.parser)
-            for comment in root.xpath("//comment()"):
-                parent = comment.getparent()
-                if parent is not None:
-                    comment.getparent().remove(comment)
-            self._nsmap = root.nsmap
-            self._mapns = {v: k for k, v in self._nsmap.items()}
+            parser = lxml.etree.XMLParser(
+                resolve_entities=resolve_entities,
+                huge_tree=huge_tree,
+                recover=False,  # Non recuperare da errori
+                no_network=True,  # Blocca accesso rete
+                remove_blank_text=strip_whitespace,
+                ns_clean=True,
+                remove_comments=True,
+            )
+            root = lxml.etree.fromstring(xml_bytes, parser)
+            # for comment in root.xpath("//comment()"):
+            #     parent = comment.getparent()
+            #     if parent is not None:
+            #         comment.getparent().remove(comment)
+            # nsmap = root.nsmap
+            # mapns = {v: k for k, v in self._nsmap.items()}
             # return {lxml.etree.QName(root).localname: self._element_to_dict(root)}
-            return {root.tag: self._element_to_dict(root)}
+            return {root.tag: cls._element_to_dict(root, max_depth,
+                                                   strip_whitespace)}
         except lxml.etree.XMLSyntaxError as e:
             raise ValueError(f"XML malformato: {e}")
         except Exception as e:
             raise RuntimeError(f"Errore durante il parsing: {e}")
+
+    @classmethod
+    def get_elem(cls, a, b, c=None):
+        if a is None:
+            return a
+
+        if len(b) > 0:
+            return cls.get_elem(a.get("elem", {}).get(b[0]), b[1:], c)
+
+        if isinstance(a, list):
+            return [x.get(c) if c is not None else x for x in a]
+
+        return a.get(c) if c is not None else a
 
 
 class DateParser():

@@ -1,5 +1,4 @@
 from .types import FreeFlowExt
-import re
 import aiohttp
 import yarl
 import multidict
@@ -7,9 +6,11 @@ import json
 import ssl
 import asyncio
 import logging
-from ..utils import asyncio_run, MimeTypeParser, SecureXMLParser, EnvVarParser
+# import babel.dates
+import re
+from ..utils import asyncio_run, MimeTypeParser, SecureXMLParser
 
-__TYPENAME__ = "RestApiRequester"
+__TYPENAME__ = "HtmlRequester"
 
 
 """
@@ -24,7 +25,7 @@ run parameter:
 """
 
 
-class RestApiRequesterV1_0(FreeFlowExt):
+class HtmlRequesterV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
@@ -36,9 +37,9 @@ class RestApiRequesterV1_0(FreeFlowExt):
                  cafile=None, capath=None, cadata=None, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
-        self._url = EnvVarParser.parse(url)
-        self._timeout = EnvVarParser.parse(timeout)
-        self._headers = {k: EnvVarParser.parse(v) for k, v in headers.items()}
+        self._url = url
+        self._timeout = timeout
+        self._headers = headers
         self._method = method.upper()
         self._max_resp_size = max_response_size
 
@@ -55,9 +56,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 self._ssl_context.verify_mode = ssl.CERT_REQUIRED
             if cafile or capath or cadata:
                 self._ssl_context.load_verify_locations(
-                    cafile=EnvVarParser.parse(cafile),
-                    capath=EnvVarParser.parse(capath),
-                    cadata=EnvVarParser.parse(cadata))
+                    cafile=cafile, capath=capath, cadata=cadata)
         else:
             self._ssl_context = None
 
@@ -75,7 +74,8 @@ class RestApiRequesterV1_0(FreeFlowExt):
 
     def _validate_ssl_ca_config(self, config):
         keys = ["file", "path", "data"]
-        return isinstance(config, dict) and len([k for k in config.keys() if k in keys]) > 0
+        return isinstance(config, dict) and len([k for k in config.keys()
+                                                 if k in keys]) > 0
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -129,45 +129,46 @@ class RestApiRequesterV1_0(FreeFlowExt):
                         {"req": {}, "userdata": userdata, "headers": {},
                          "body": {}}, 102)
 
-                content_length = int(resp.headers.get("Content-Length", 0))
+                content_length = int(resp.headers.get('Content-Length', 0))
                 if content_length > self._max_resp_size:
                     self._logger.error("response size %d exceeded max size %s",
                                        content_length, self._max_resp_size)
                     return (
                         {"req": {}, "userdata": userdata, "headers": {},
-                         "body": {}}, 105)
+                         "body": {}}, 101)
 
                 raw = await resp.read()
                 if len(raw) > self._max_resp_size:
-                    self._logger.error("real response size %d exceeded max size %s",
-                                       content_length, self._max_resp_size)
+                    self._logger.error(
+                        "real response size %d exceeded max size %s",
+                        content_length, self._max_resp_size)
                     return (
                         {"req": {}, "userdata": userdata, "headers": {},
-                         "body": {}}, 105)
+                         "body": {}}, 101)
 
                 req_info = {k: self._multidict_to_dict(v)
-                            for k, v in dict(resp._request_info._asdict()).items()}
+                            for k, v in dict(
+                                    resp._request_info._asdict()).items()}
                 try:
                     mimetype = self._split_mimetype(
                         resp.headers.get("Content-Type"))
-                    if MimeTypeParser.is_json(mimetype.get(
-                            "type", "application/json")):
-                        body = json.loads(raw.decode(
-                            mimetype.get("charset", "utf-8")))
-                    elif MimeTypeParser.is_xml(mimetype):
-                        body = SecureXMLParser.parse_bytes(
-                            raw, max_size=self._max_resp_size)
+                    if MimeTypeParser.is_html(mimetype.get("type")):
+                        body = SecureXMLParser.parse_string(raw.decode(
+                            mimetype.get("charset", "utf-8")), html=True)
                     else:
+                        self._logger.warning(
+                            "aiohttp request %s warning: response type '%s'",
+                            url, mimetype)
                         body = {}
                 except Exception as ex:
-                    self._logger.error("Exception in parsing content: %s", ex)
+                    self._logger.error("feed load %s error: %s", url, ex)
                     return (
                         {"req": req_info, "userdata": userdata,
                          "headers": dict(resp.headers), "body": {}}, 106)
 
-            return (
-                {"req": req_info, "userdata": userdata,
-                 "headers": dict(resp.headers), "body": body}, 0)
+                return (
+                    {"req": req_info, "userdata": userdata,
+                     "headers": dict(resp.headers), "body": body}, 0)
 
         except aiohttp.ClientError as ex:
             self._logger.error("aiohttp request %s error: %s", url, ex)
@@ -175,15 +176,10 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 {"req": {}, "userdata": userdata, "headers": {},
                  "body": {}}, 101)
         except asyncio.exceptions.TimeoutError as ex:
-            self._logger.error("aiohttp timeout on %s error %s", url, ex)
+            self._logger.error("aiohttp timeout on %s error: %s", url, ex)
             return (
                 {"req": {}, "userdata": userdata, "headers": {},
                  "body": {}}, 104)
-        except Exception as ex:
-            self._logger.error("aiohttp request %s error: %s", url, ex)
-            return (
-                {"req": req_info, "userdata": userdata,
-                 "headers": dict(resp.headers), "body": {}}, 106)
 
     async def _do_get(self, state, data):
         headers = self._headers | data.get("headers", {})

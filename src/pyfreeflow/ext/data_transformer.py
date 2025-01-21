@@ -38,6 +38,8 @@ class DataTransformerV1_0(FreeFlowExt):
         super().__init__(name, max_tasks=max_tasks)
         self._force = force
         self._env = self._create_safe_lua_env()
+        self._logger = logging.getLogger(".".join([__name__, self.__typename__,
+                                                   self._name]))
 
         self._env.globals().safe_env["xxh3_64"] = xxhash.xxh3_64_hexdigest
         self._env.globals().safe_env["xxh3_128"] = xxhash.xxh3_128_hexdigest
@@ -51,15 +53,16 @@ class DataTransformerV1_0(FreeFlowExt):
             self._env.globals().safe_env["encrypt"] = self._encrypt
             self._env.globals().safe_env["decrypt"] = self._decrypt
 
-        self._transformer = self._env.globals().eval_safe(
-            "\n".join(["function f(state, data)",
-                       transformer,
-                       "return state, data",
-                       "end"]))
+        try:
+            self._transformer = self._env.globals().eval_safe(
+                "\n".join(["function f(state, data)",
+                           transformer,
+                           "return state, data",
+                           "end"]))
+        except Exception as ex:
+            self._logger.error(ex)
 
         assert (self._transformer is not None)
-        self._logger = logging.getLogger(".".join([__name__, self.__typename__,
-                                                   self._name]))
 
     def __str__(self):
         return "{typ}(name: {n}, version: {v})".format(
@@ -133,11 +136,13 @@ class DataTransformerV1_0(FreeFlowExt):
             end
             return table.concat(t, ...)
           end
-          __table.move = function(s, sp, tp, n, t)
-            if getmetatable(t) ~= "array" then
-              error("array expected", 3)
+          if table.move then
+            __table.move = function(s, sp, tp, n, t)
+              if getmetatable(t) ~= "array" then
+                error("array expected", 3)
+              end
+              return table.move(s, sp, tp, n, t)
             end
-            return table.move(s, sp, tp, n, t)
           end
           local __rawset = function(t, ...)
             if getmetatable(t) ~= "null" then
@@ -210,6 +215,18 @@ class DataTransformerV1_0(FreeFlowExt):
             local u = array()
             for i, d in ipairs(t) do
               u[i] = f(d)
+            end
+            return u
+          end
+
+          __table.tail = function(t, index)
+            if getmetatable(t) ~= "array" then
+              error("array expected", 3)
+            end
+            index = index or 2
+            local u = array()
+            for i = index, #t do
+              table.insert(u, t[i])
             end
             return u
           end
@@ -288,6 +305,27 @@ class DataTransformerV1_0(FreeFlowExt):
             return str
           end
 
+          local securexmlparser = {}
+          securexmlparser.getelem = function(a, b, c)
+            if isnull(a) then return null end
+
+            if #b > 0 then
+              local e = a.elem and a.elem[b[1]] or map()
+              return securexmlparser.getelem(e, __table.tail(b, 2), c)
+            end
+
+            if __table.isarray(a) then
+              local r = array()
+              for i, d in ipairs(a) do
+                local val = c and d[c] or d
+                __table.insert(r, val)
+              end
+              return r
+            end
+
+            return c and a[c] or a
+          end
+
           safe_env = {
             assert = assert,
             pairs = pairs,
@@ -306,6 +344,7 @@ class DataTransformerV1_0(FreeFlowExt):
             isnull = isnull,
             map = map,
             array = array,
+            securexmlparser = securexmlparser,
           }
 
           -- Funzione per valutare codice in ambiente sicuro

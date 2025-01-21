@@ -28,7 +28,7 @@ run parameter:
 class FeedTagParser():
     @classmethod
     def parse_content(cls, a, b):
-        content = cls.get_child(a, b, "attrs")
+        content = SecureXMLParser.get_elem(a, b, "attrs")
         if isinstance(content, list):
             return [{"url": x.get("url"), "type": x.get("type")} for x in content]
         return [{"url": content.get("url"), "type": content.get("type")}]
@@ -55,218 +55,205 @@ class FeedTagParser():
             return [{"href": x.get(b), "rel": x.get("rel", "alternate")} for x in a]
         return [{"href": a.get(b), "rel": a.get("rel", "alternate")}]
 
-    @classmethod
-    def get_child(cls, a, b, c=None):
-        if a is None:
-            return a
-
-        if len(b) > 0:
-            return cls.get_child(a.get("elem", {}).get(b[0]), b[1:], c)
-
-        if isinstance(a, list):
-            return [x.get(c) if c is not None else x for x in a]
-
-        return a.get(c) if c is not None else a
-
 
 class FeedTagDefinition():
     RSS20_TAG = {
-        "channel": lambda a: (None, FeedTagParser.get_child(
+        "channel": lambda a: (None, SecureXMLParser.get_elem(
             a, ["channel"], "elem")),
-        "item": lambda a: ("entry", FeedTagParser.get_child(
+        "item": lambda a: ("entry", SecureXMLParser.get_elem(
             a, ["item"])),
-        "title": lambda a: ("title", FeedTagParser.get_child(
+        "title": lambda a: ("title", SecureXMLParser.get_elem(
             a, ["title"], "text")),
-        "link": lambda a: ("link", [{"href": FeedTagParser.get_child(
+        "link": lambda a: ("link", [{"href": SecureXMLParser.get_elem(
             a, ["link"], "text"), "rel": "alternate"}]),
-        "description": lambda a: ("description", FeedTagParser.get_child(
+        "description": lambda a: ("description", SecureXMLParser.get_elem(
             a, ["description"], "text")),
-        "language": lambda a: ("language", FeedTagParser.get_child(
+        "language": lambda a: ("language", SecureXMLParser.get_elem(
             a, ["language"], "text")),
-        "copyright": lambda a: ("copyright", FeedTagParser.get_child(
+        "copyright": lambda a: ("copyright", SecureXMLParser.get_elem(
             a, ["copyright"], "text")),
-        "managingEditor": lambda a: ("copyright", FeedTagParser.get_child(
+        "managingEditor": lambda a: ("copyright", SecureXMLParser.get_elem(
             a, ["managingEditor"], "text")),
-        "webMaster": lambda a: ("webMaster", FeedTagParser.get_child(
+        "webMaster": lambda a: ("webMaster", SecureXMLParser.get_elem(
             a, ["webMaster"], "text")),
         "pubDate": lambda a: ("published", DateParser.parse_date(
-            FeedTagParser.get_child(a, ["pubDate"], "text"))),
+            SecureXMLParser.get_elem(a, ["pubDate"], "text"))),
         "pubdate": lambda a: ("published", DateParser.parse_date(
-            FeedTagParser.get_child(a, ["pubdate"], "text"))),
+            SecureXMLParser.get_elem(a, ["pubdate"], "text"))),
         "lastBuildDate": lambda a: ("updated", DateParser.parse_date(
-            FeedTagParser.get_child(a, ["lastBuildDate"], "text"))),
+            SecureXMLParser.get_elem(a, ["lastBuildDate"], "text"))),
         "lastbuilddate": lambda a: ("updated", DateParser.parse_date(
-            FeedTagParser.get_child(a, ["lastBuildDate"], "text"))),
-        "category": lambda a: ("category", FeedTagParser.get_child(
+            SecureXMLParser.get_elem(a, ["lastBuildDate"], "text"))),
+        "category": lambda a: ("category", SecureXMLParser.get_elem(
             a, ["category"], "text")),
-        "generator": lambda a: ("generator", FeedTagParser.get_child(
+        "generator": lambda a: ("generator", SecureXMLParser.get_elem(
             a, ["generator"], "text")),
-        "docs": lambda a: ("docs", FeedTagParser.get_child(
+        "docs": lambda a: ("docs", SecureXMLParser.get_elem(
             a, ["docs"], "text")),
-        "cloud": lambda a: ("cloud", FeedTagParser.get_child(
+        "cloud": lambda a: ("cloud", SecureXMLParser.get_elem(
             a, ["cloud"], "text")),
-        "ttl": lambda a: ("ttl", FeedTagParser.get_child(a, ["ttl"], "text")),
-        "image": lambda a: ("image", FeedTagParser.get_child(
+        "ttl": lambda a: ("ttl", SecureXMLParser.get_elem(a, ["ttl"], "text")),
+        "image": lambda a: ("image", SecureXMLParser.get_elem(
             a, ["image"], "text")),
         "enclosure": lambda a: ("media", [{
-            "url": FeedTagParser.get_child(
+            "url": SecureXMLParser.get_elem(
                 a, ["enclosure"], "attrs").get("url"),
-            "type": FeedTagParser.get_child(
+            "type": SecureXMLParser.get_elem(
                 a, ["enclosure"], "attrs").get("type"),
         }]),
-        "rating": lambda a: ("rating", FeedTagParser.get_child(
+        "rating": lambda a: ("rating", SecureXMLParser.get_elem(
             a, ["rating"], "text")),
-        "textInput": lambda a: ("textInput", FeedTagParser.get_child(
+        "textInput": lambda a: ("textInput", SecureXMLParser.get_elem(
             a, ["textInput"], "text")),
-        "skipHours": lambda a: ("skipHours", FeedTagParser.get_child(
+        "skipHours": lambda a: ("skipHours", SecureXMLParser.get_elem(
             a, ["skipHours"], "text")),
-        "skipDays": lambda a: ("skipDays", FeedTagParser.get_child(
+        "skipDays": lambda a: ("skipDays", SecureXMLParser.get_elem(
             a, ["skipDays"], "text")),
         "author": lambda a: ("author", FeedTagParser.tolist_if(
-            FeedTagParser.get_child(a, ["author"], "text"))),
-        "comments": lambda a: ("comments", FeedTagParser.get_child(
+            SecureXMLParser.get_elem(a, ["author"], "text"))),
+        "comments": lambda a: ("comments", SecureXMLParser.get_elem(
             a, ["comments"], "text")),
-        "guid": lambda a: ("guid", FeedTagParser.get_child(
+        "guid": lambda a: ("guid", SecureXMLParser.get_elem(
             a, ["guid"], "text")),
-        "source": lambda a: ("source", FeedTagParser.get_child(
+        "source": lambda a: ("source", SecureXMLParser.get_elem(
             a, ["source"], "text")),
     }
 
     ATOM_TAG = {
         "{http://www.w3.org/2005/Atom}link": lambda a: (
             "link", FeedTagParser.get_atom_link(
-                FeedTagParser.get_child(
+                SecureXMLParser.get_elem(
                     a, ["{http://www.w3.org/2005/Atom}link"], "attrs"),
                 "href")),
         "{http://www.w3.org/2005/Atom}id": lambda a: (
-            "id", FeedTagParser.get_child(
+            "id", SecureXMLParser.get_elem(
                 a, ["{http://www.w3.org/2005/Atom}id"], "text")),
         "{http://www.w3.org/2005/Atom}title": lambda a: (
-            "title", FeedTagParser.get_child(
+            "title", SecureXMLParser.get_elem(
                 a, ["{http://www.w3.org/2005/Atom}title"], "text")),
         "{http://www.w3.org/2005/Atom}content": lambda a: (
-            "content", FeedTagParser.get_child(
+            "content", SecureXMLParser.get_elem(
                 a, ["{http://www.w3.org/2005/Atom}content"], "text")),
         "{http://www.w3.org/2005/Atom}author": lambda a:
-        ("author", FeedTagParser.tolist_if(FeedTagParser.get_child(a, [
+        ("author", FeedTagParser.tolist_if(SecureXMLParser.get_elem(a, [
             "{http://www.w3.org/2005/Atom}author",
             "{http://www.w3.org/2005/Atom}name"], "text"))),
         "{http://www.w3.org/2005/Atom}published": lambda a: (
-            "published", DateParser.parse_date(FeedTagParser.get_child(
+            "published", DateParser.parse_date(SecureXMLParser.get_elem(
                 a, ["{http://www.w3.org/2005/Atom}published"], "text"))),
         "{http://www.w3.org/2005/Atom}updated": lambda a: (
-            "updated", DateParser.parse_date(FeedTagParser.get_child(
+            "updated", DateParser.parse_date(SecureXMLParser.get_elem(
                 a, ["{http://www.w3.org/2005/Atom}updated"], "text"))),
         "{http://www.w3.org/2005/Atom}entry": lambda a: (
-            "entry", FeedTagParser.get_child(
+            "entry", SecureXMLParser.get_elem(
                 a, ["{http://www.w3.org/2005/Atom}entry"])),
     }
 
     ITUNES_TAG = {
         "{http://www.itunes.com/dtds/podcast-1.0.dtd}author": lambda a: (
-            "author", FeedTagParser.tolist_if(FeedTagParser.get_child(
+            "author", FeedTagParser.tolist_if(SecureXMLParser.get_elem(
                 a, ["{http://www.itunes.com/dtds/podcast-1.0.dtd}author"],
                 "text"))),
         "{http://www.itunes.com/dtds/podcast-1.0.dtd}summary": lambda a: (
-            "description", FeedTagParser.get_child(
+            "description", SecureXMLParser.get_elem(
                 a, ["{http://www.itunes.com/dtds/podcast-1.0.dtd}summary"],
                 "text")),
         "{http://www.itunes.com/dtds/podcast-1.0.dtd}category": lambda a: (
-            "category", FeedTagParser.get_child(
+            "category", SecureXMLParser.get_elem(
                 a, ["{http://www.itunes.com/dtds/podcast-1.0.dtd}category"],
                 "text")),
         "{http://www.itunes.com/dtds/podcast-1.0.dtd}title": lambda a: (
-            "title", FeedTagParser.get_child(
+            "title", SecureXMLParser.get_elem(
                 a, ["{http://www.itunes.com/dtds/podcast-1.0.dtd}title"],
                 "text")),
     }
 
     MEDIA_RSS_TAG = {
         "{http://search.yahoo.com/mrss}group": lambda a: (
-            "group", FeedTagParser.get_child(
+            "group", SecureXMLParser.get_elem(
                 a, ["{http://search.yahoo.com/mrss}group"])),
         "{http://search.yahoo.com/mrss}credit": lambda a: (
-            "author", FeedTagParser.tolist_if(FeedTagParser.get_child(
+            "author", FeedTagParser.tolist_if(SecureXMLParser.get_elem(
                 a, ["{http://search.yahoo.com/mrss}credit"],
                 "text"))),
         "{http://search.yahoo.com/mrss}description": lambda a: (
-            "description", FeedTagParser.get_child(
+            "description", SecureXMLParser.get_elem(
                 a, ["{http://search.yahoo.com/mrss}description"],
                 "text")),
         "{http://search.yahoo.com/mrss}content": lambda a: (
             "media", FeedTagParser.parse_content(
                 a, ["{http://search.yahoo.com/mrss}content"])),
         "{http://search.yahoo.com/mrss}category": lambda a: (
-            "category", FeedTagParser.get_child(
+            "category", SecureXMLParser.get_elem(
                 a, ["{http://search.yahoo.com/mrss}category"],
                 "text")),
         "{http://search.yahoo.com/mrss}comments": lambda a: (
-            "comments", FeedTagParser.get_child(
+            "comments", SecureXMLParser.get_elem(
                 a, ["{http://search.yahoo.com/mrss}comments"],
                 "text")),
         "{http://search.yahoo.com/mrss}title": lambda a: (
-            "title", FeedTagParser.get_child(
+            "title", SecureXMLParser.get_elem(
                 a, ["{http://search.yahoo.com/mrss}title"],
                 "text")),
     }
 
     RSS10_TAG = {
         "{http://purl.org/rss/1.0}channel": lambda a: (
-            None, FeedTagParser.get_child(
+            None, SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0}channel"])),
         "{http://purl.org/rss/1.0}title": lambda a: (
-            "title", FeedTagParser.get_child(
+            "title", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0}title"], "text")),
         "{http://purl.org/rss/1.0}description": lambda a: (
-            "description", FeedTagParser.get_child(
+            "description", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0}description"], "text")),
         "{http://purl.org/rss/1.0}item": lambda a: (
-            "entry", FeedTagParser.get_child(
+            "entry", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0}item"])),
         "{http://purl.org/rss/1.0}link": lambda a: (
-            "link", [{"href": FeedTagParser.get_child(
+            "link", [{"href": SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0}link"], "text"),
                       "rel": "alternate"}]),
     }
 
     RSS10_CONTENT_TAG = {
         "{http://purl.org/rss/1.0/modules/content}encoded": lambda a: (
-            "content", FeedTagParser.get_child(
+            "content", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0/modules/content}encoded"],
                 "text")),
     }
 
     DCMI_TAG = {
         "{http://purl.org/dc/elements/1.1}creator": lambda a: (
-            "author", FeedTagParser.tolist_if(FeedTagParser.get_child(
+            "author", FeedTagParser.tolist_if(SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}creator"],
                 "text"))),
         "{http://purl.org/dc/elements/1.1}date": lambda a: (
-            "published", DateParser.parse_date(FeedTagParser.get_child(
+            "published", DateParser.parse_date(SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}date"], "text"))),
         "{http://purl.org/dc/elements/1.1}description": lambda a: (
-            "description", FeedTagParser.get_child(
+            "description", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}description"], "text")),
         "{http://purl.org/dc/elements/1.1}type": lambda a: (
-            "type", FeedTagParser.get_child(
+            "type", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}type"], "text")),
         "{http://purl.org/dc/elements/1.1}language": lambda a: (
-            "language", FeedTagParser.get_child(
+            "language", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}language"], "text")),
         "{http://purl.org/dc/elements/1.1}publisher": lambda a: (
-            "managingEditor", FeedTagParser.get_child(
+            "managingEditor", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}publisher"], "text")),
         "{http://purl.org/dc/elements/1.1}rights": lambda a: (
-            "copyright", FeedTagParser.get_child(
+            "copyright", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}rights"], "text")),
         "{http://purl.org/dc/elements/1.1}source": lambda a: (
-            "source", FeedTagParser.get_child(
+            "source", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}source"], "text")),
         "{http://purl.org/dc/elements/1.1}title": lambda a: (
-            "title", FeedTagParser.get_child(
+            "title", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}title"], "text")),
         "{http://purl.org/dc/elements/1.1}subject": lambda a: (
-            "category", FeedTagParser.get_child(
+            "category", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}subject"], "text")),
     }
 
@@ -287,6 +274,9 @@ class FeedRequesterV1_0(FreeFlowExt):
 
     RDF_TAG = FeedTagDefinition.RSS10_TAG | FeedTagDefinition.RSS10_CONTENT_TAG \
         | FeedTagDefinition.DCMI_TAG
+
+    CONTENT_TYPE_PATTERN = re.compile(r';\s*')
+    CONTENT_TYPE_PATTERN2 = re.compile(r'\s*=\s*')
 
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
                  max_response_size=10485760, sslenabled=True, insecure=False,
@@ -361,6 +351,14 @@ class FeedRequesterV1_0(FreeFlowExt):
 
     def _prepare_request_p(self, x):
         return {k: str(v) for k, v in x.items()} if x is not None else x
+
+    def _split_mimetype(self, mimetype):
+        t = self.CONTENT_TYPE_PATTERN.split(mimetype)
+        m = {"type": t[0]}
+        for x in t[1:]:
+            kv = self.CONTENT_TYPE_PATTERN2.split(x)
+            m[kv[0]] = kv[1]
+        return m
 
     def _sanitize_feed(self, data):
         if isinstance(data, dict):
@@ -469,10 +467,10 @@ class FeedRequesterV1_0(FreeFlowExt):
                             for k, v in dict(
                                     resp._request_info._asdict()).items()}
                 try:
-                    mimetype = resp.headers.get("Content-Type")
-                    if MimeTypeParser.is_xml(mimetype):
-                        parser = SecureXMLParser()
-                        body = parser.parse_string(raw.decode("utf-8"))
+                    mimetype = self._split_mimetype(
+                        resp.headers.get("Content-Type"))
+                    if MimeTypeParser.is_xml(mimetype.get("type")):
+                        body = SecureXMLParser.parse_bytes(raw)
                     else:
                         self._logger.warning(
                             "aiohttp request %s warning: response type '%s'",
