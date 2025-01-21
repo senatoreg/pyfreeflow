@@ -2,6 +2,7 @@ from .types import FreeFlowExt
 import logging
 import datetime as dt
 import xxhash
+import json
 from decimal import Decimal
 from cryptography.fernet import Fernet
 from ..utils import deepupdate, DurationParser, EnvVarParser, DateParser
@@ -46,6 +47,8 @@ class DataTransformerV1_0(FreeFlowExt):
         self._env.globals().safe_env["now"] = self._dt_now_ts
         self._env.globals().safe_env["timedelta"] = self._dt_delta_ts
         self._env.globals().safe_env["parsedatetime"] = self._dt_parsedt_ts
+        self._env.globals().safe_env["fromjson"] = self._fromjson
+        self._env.globals().safe_env["tojson"] = self._tojson
 
         if secret is not None:
             with open(EnvVarParser.parse(secret), "rb") as f:
@@ -377,6 +380,12 @@ class DataTransformerV1_0(FreeFlowExt):
 
     def _dt_delta_ts(self, duration):
         return DurationParser.parse(duration)
+
+    def _fromjson(self, s):
+        return self._py_to_lua(json.loads(s))
+
+    def _tojson(self, s):
+        return json.dumps(self._lua_to_py(s))
 
     def _encrypt(self, value):
         return self._cipher.encrypt(value.encode("utf-8"))
