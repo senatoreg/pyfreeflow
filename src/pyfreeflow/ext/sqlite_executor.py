@@ -131,7 +131,8 @@ class SqLiteExecutorV1_0(FreeFlowExt):
         assert (self._stm is not None)
 
         ConnectionPool.register(self._name, self._conninfo,
-                                extension, max_size=max_connections)
+                                [EnvVarParser.parse(x) for x in extension],
+                                max_size=max_connections)
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))
