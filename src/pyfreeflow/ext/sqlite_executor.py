@@ -74,6 +74,7 @@ class ConnectionPool():
         conninfo = cls.CLIENT[client_name]["conninfo"]
 
         db = await aiosqlite.connect(**conninfo)
+        db.text_factory = lambda x: x.decode(errors='ignore')
         await db.create_function("REGEXP", 2, cls.__regexp__)
         return db
 
