@@ -26,10 +26,11 @@ class ConnectionPool():
         return False
 
     @classmethod
-    def register(cls, client_name, conninfo, max_size=4):
+    def register(cls, client_name, conninfo, extension=[], max_size=4):
         if client_name not in cls.CLIENT.keys():
             cls.CLIENT[client_name] = {
                 "conninfo": conninfo,
+                "extension": extension,
                 "lock": asyncio.BoundedSemaphore(max_size)}
 
             if client_name not in cls.POOL.keys():
@@ -79,7 +80,9 @@ class ConnectionPool():
 
         db = await aiosqlite.connect(**conninfo)
         db.text_factory = lambda x: x.decode(errors='ignore')
-        await db.create_function("REGEXP", 2, cls.__regexp__)
+        await db.enable_load_extension(True)
+        for ext in cls.CLIENT[client_name]["extension"]:
+            await db.load_extension(ext)
         return db
 
     @classmethod
@@ -117,7 +120,7 @@ class SqLiteExecutorV1_0(FreeFlowExt):
     __version__ = "1.0"
 
     def __init__(self, name, path, statement=None, param={},
-                 max_connections=4, max_tasks=4):
+                 extension=[], max_connections=4, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
         self._conninfo = {"database": EnvVarParser.parse(path)}
@@ -128,7 +131,7 @@ class SqLiteExecutorV1_0(FreeFlowExt):
         assert (self._stm is not None)
 
         ConnectionPool.register(self._name, self._conninfo,
-                                max_size=max_connections)
+                                extension, max_size=max_connections)
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))
