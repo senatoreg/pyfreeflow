@@ -176,14 +176,17 @@ class PgSqlExecutorV1_0(FreeFlowExt):
         try:
             async with conn.cursor() as cur:
                 value = data.get("value")
+                placeholder = data.get("placeholder", {})
+
+                stm = self._stm.format(**placeholder)
 
                 if value is not None:
                     if value and isinstance(value, list) and len(value) > 0:
-                        await cur.executemany(self._stm, value)
+                        await cur.executemany(stm, value)
                     elif value and isinstance(value, dict) and len(value) > 0:
-                        await cur.execute(self._stm, value)
+                        await cur.execute(stm, value)
                 else:
-                    await cur.execute(self._stm)
+                    await cur.execute(stm)
 
                 if cur.description:
                     rs["resultset"] = await cur.fetchall()

@@ -19,7 +19,11 @@ class ConnectionPool():
 
     @classmethod
     def __regexp__(cls, pattern, item):
-        return re.search(pattern, item) is not None
+        if isinstance(item, str):
+            return re.search(pattern, item) is not None
+        elif isinstance(item, (int, float, dict, list)):
+            return re.search(pattern, str(item)) is not None
+        return False
 
     @classmethod
     def register(cls, client_name, conninfo, max_size=4):
@@ -82,7 +86,7 @@ class ConnectionPool():
     async def release(cls, client_name, conn):
         if client_name in cls.CLIENT.keys():
             lock = cls.CLIENT[client_name]["lock"]
-            await cls.POOL[client_name].put(conn)
+            # await cls.POOL[client_name].put(conn)
             lock.release()
             cls.LOGGER.debug("RELEASE {} Lock[{}/{}/{}] Queue[{}]".format(
                 client_name, len(lock._waiters) if lock._waiters else 0,
@@ -153,14 +157,17 @@ class SqLiteExecutorV1_0(FreeFlowExt):
         try:
             async with conn.cursor() as cur:
                 value = data.get("value")
+                placeholder = data.get("placeholder", {})
+
+                stm = self._stm.format(**placeholder)
 
                 if value is not None:
                     if value and isinstance(value, list) and len(value) > 0:
-                        await cur.executemany(self._stm, value)
+                        await cur.executemany(stm, value)
                     elif value and isinstance(value, dict) and len(value) > 0:
-                        await cur.execute(self._stm, value)
+                        await cur.execute(stm, value)
                 else:
-                    await cur.execute(self._stm)
+                    await cur.execute(stm)
 
                 if cur.description:
                     rs["resultset"] = await cur.fetchall()
