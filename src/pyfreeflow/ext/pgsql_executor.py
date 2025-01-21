@@ -191,7 +191,7 @@ class PgSqlExecutorV1_0(FreeFlowExt):
                 if cur.description:
                     rs["resultset"] = await cur.fetchall()
 
-            await conn.commit()
+                await conn.commit()
         except psycopg.errors.Error as ex:
             rc = 102
             if not conn.closed:
