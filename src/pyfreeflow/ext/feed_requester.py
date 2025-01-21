@@ -91,7 +91,11 @@ class FeedTagDefinition():
             a, ["webMaster"], "text")),
         "pubDate": lambda a: ("published", DateParser.parse_date(
             FeedTagParser.get_child(a, ["pubDate"], "text"))),
+        "pubdate": lambda a: ("published", DateParser.parse_date(
+            FeedTagParser.get_child(a, ["pubdate"], "text"))),
         "lastBuildDate": lambda a: ("updated", DateParser.parse_date(
+            FeedTagParser.get_child(a, ["lastBuildDate"], "text"))),
+        "lastbuilddate": lambda a: ("updated", DateParser.parse_date(
             FeedTagParser.get_child(a, ["lastBuildDate"], "text"))),
         "category": lambda a: ("category", FeedTagParser.get_child(
             a, ["category"], "text")),
@@ -277,7 +281,7 @@ class FeedRequesterV1_0(FreeFlowExt):
 
     RSS20_TAG = FeedTagDefinition.RSS20_TAG | FeedTagDefinition.ITUNES_TAG | \
         FeedTagDefinition.MEDIA_RSS_TAG | FeedTagDefinition.RSS10_CONTENT_TAG | \
-        FeedTagDefinition.DCMI_TAG
+        FeedTagDefinition.DCMI_TAG | FeedTagDefinition.ATOM_TAG
 
     ATOM_TAG = FeedTagDefinition.ATOM_TAG | FeedTagDefinition.MEDIA_RSS_TAG
 
