@@ -30,5 +30,14 @@ def set_loglevel(level):
     logger.setLevel(level)
 
 
+def add_loghandler(handler):
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+
+def get_logformatter():
+    return formatter
+
+
 def get_logformat():
     return formatter._fmt
