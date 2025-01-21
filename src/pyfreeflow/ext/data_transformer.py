@@ -230,7 +230,65 @@ class DataTransformerV1_0(FreeFlowExt):
             return setmetatable({}, map_mt)
           end
 
-          -- Aggiungi string.split se non esiste
+          string.qsplit = function(s, pattern)
+            pattern = pattern or "%s"
+            local squote = false
+            local dquote = false
+
+            local buf = ""
+            local t = array()
+
+            -- Definiamo le variabili per il carattere precedente e
+            -- quello corrente
+            local p, c
+
+            for i = 1, #s do
+              -- Salviamo il carattere precedente
+              p = c
+              -- Estraiamo il carattere corrente
+              c = string.sub(s, i, i)
+
+              -- Se il carattere è un singolo apice e non è già stato incontrato
+              -- un doppio apice precedentemente o il carattere precedente non
+              -- era un escape allora o sta iniziando un testo tra singoli apici
+              -- oppure sta terminando
+              if c == "'" and not dquote and p ~= "\\\\" then
+                squote = not squote
+                goto continue
+              end
+
+              -- Se il carattere è un doppio apice e non è già stato incontrato
+              -- un singolo apice precedentemente o il carattere precedente non
+              -- era un escape allora o sta iniziando un testo tra doppi apici
+              -- oppure sta terminando
+              if c == "\\"" and not squote and p ~= "\\\\" then
+                dquote = not dquote
+                goto continue
+              end
+
+              -- se il carattere corrente corrisponde al pattern se siamo tra
+              -- apici singoli o doppi concateniamo il carattere nel buffer
+              -- altrimenti inseriamolo nel risultato; se vicecersa non
+              -- corrisponde al pattern semplicemente concateniamolo
+              if string.match(c, pattern) then
+                if squote or dquote then
+                  buf = buf .. c
+                else
+                  table.insert(t, buf)
+                  buf = ""
+                end
+              elseif c ~= "\\\\" or p == "\\\\" then
+                buf = buf .. c
+              end
+
+            ::continue::
+            end
+
+            -- Salviamo l'ultimo valore trovato prima di ritornare
+            table.insert(t, buf)
+            return t
+          end
+
           string.esplit = function(s, pattern)
             local t = array()
 
