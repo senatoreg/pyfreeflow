@@ -544,12 +544,6 @@ class DateParser():
         if cur_loc not in locales:
             locales.append(cur_loc)
 
-        try:
-            return dateutil.parser.parse(
-                a, tzinfos=cls.WHOIS_TIMEZONE_INFO).timestamp()
-        except Exception:
-            pass
-
         found = False
         for loc in locales:
             locale.setlocale(locale.LC_ALL, loc)
@@ -563,4 +557,11 @@ class DateParser():
             if found:
                 break
         locale.setlocale(locale.LC_ALL, cur_loc)
+
+        if not found:
+            try:
+                return dateutil.parser.parse(
+                    a, tzinfos=cls.WHOIS_TIMEZONE_INFO).timestamp()
+            except Exception:
+                pass
         return date
