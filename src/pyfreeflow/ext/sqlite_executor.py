@@ -87,6 +87,7 @@ class ConnectionPool():
         if client_name in cls.CLIENT.keys():
             lock = cls.CLIENT[client_name]["lock"]
             # await cls.POOL[client_name].put(conn)
+            await conn.close()
             lock.release()
             cls.LOGGER.debug("RELEASE {} Lock[{}/{}/{}] Queue[{}]".format(
                 client_name, len(lock._waiters) if lock._waiters else 0,
@@ -172,8 +173,7 @@ class SqLiteExecutorV1_0(FreeFlowExt):
                 if cur.description:
                     rs["resultset"] = await cur.fetchall()
 
-            await conn.commit()
-            await conn.close()
+                await conn.commit()
         except aiosqlite.Error as ex:
             rc = 102
             await conn.rollback()
