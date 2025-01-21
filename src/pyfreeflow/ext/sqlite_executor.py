@@ -80,6 +80,7 @@ class ConnectionPool():
 
         db = await aiosqlite.connect(**conninfo)
         db.text_factory = lambda x: x.decode(errors='ignore')
+        await db.execute("PRAGMA foreign_keys = ON;")
         await db.enable_load_extension(True)
         for ext in cls.CLIENT[client_name]["extension"]:
             await db.load_extension(ext)
