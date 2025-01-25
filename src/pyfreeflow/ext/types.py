@@ -48,13 +48,15 @@ class FreeFlowExt(metaclass=ExtRegister):
                         name=self._name + "-unpack-" + str(i)))
                     cur -= 1
 
-            done, pending = await asyncio.wait(
-                aws, return_when=asyncio.ALL_COMPLETED)
+            if len(aws) > 0:
+                done, pending = await asyncio.wait(
+                    aws, return_when=asyncio.ALL_COMPLETED)
 
-            assert (len(pending) == 0)
-            for task in done:
-                state, t = await task
-                _data.append(t)
+                assert (len(pending) == 0)
+                for task in done:
+                    state, t = await task
+                    _data.append(t)
+
             return state, _data
         else:
             # param0 or param1 or ...
