@@ -109,17 +109,11 @@ class ConnectionPool():
     @staticmethod
     async def is_alive(conn):
         try:
-            print("is alive A")
             wr = conn.get("writer")
             wr.write("currentsong\n".encode("utf-8"))
-            print("is alive B")
             await wr.drain()
-            print("is alive C")
             rd = conn.get("reader")
-            print("is alive D")
             r = await rd.read(1000)
-            print("is alive E")
-            print(r)
             return re.search(r'\nOK$'.encode("utf-8"), r)
         except Exception:
             return False
@@ -132,8 +126,13 @@ class MpdExecutorV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
+    OK = re.compile(r'OK$'.encode("utf-8")).search
+    LINER = re.compile(r'\n').split
+    FIELD_SEP = re.compile(r'^([\w\d]+): *(.*)').match
+    UNQUOTE = re.compile(r'"')
+
     def __init__(self, name, path=None, host="localhost", port=6600, param={},
-                 max_connections=4, max_tasks=4):
+                 max_buffer=10*1024*1024, max_connections=4, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
         assert (path is not None or (host is not None and port is not None))
@@ -142,6 +141,8 @@ class MpdExecutorV1_0(FreeFlowExt):
             "host": EnvVarParser.parse(host),
             "port": EnvVarParser.parse(port),
         }
+
+        self._max_buffer = max_buffer
 
         for k, v in param.items():
             self._conninfo[k] = EnvVarParser.parse(v)
@@ -154,6 +155,8 @@ class MpdExecutorV1_0(FreeFlowExt):
 
         self._action = {
             "add": self._add,
+            "playlist": self._playlist,
+            "playlistsearch": self._playlistsearch,
         }
 
     async def __aenter__(self):
@@ -166,17 +169,47 @@ class MpdExecutorV1_0(FreeFlowExt):
         pass
         # asyncio_run(ConnectionPool.unregister(self._name), force=True)
 
+    async def _send(self, cmd, conn):
+        try:
+            wr = conn.get("writer")
+            wr.write((cmd + "\n").encode("utf-8"))
+            await wr.drain()
+            res = await conn.get("reader").read(self._max_buffer)
+            return (self.OK(res) is not None, res.decode("utf-8"))
+        except Exception as ex:
+            self._logger.error(ex)
+            return (False, None)
+
     async def _add(self, data, conn):
         uri = data.get("uri")
+        pos = data.get("pos", "")
 
         if uri is not None:
-            req = "add \"" + uri + "\"" + "\n"
-            wr = conn.get("writer")
-            wr.write(req.encode("utf-8"))
-            await wr.drain()
-            res = await conn.get("reader").read(1000)
-            return (re.search(r'^OK'.encode("utf-8"), res) is not None,
-                    res.decode("utf-8"))
+            req = "add \"" + uri + "\" " + pos
+            return await self._send(req, conn)
+        return (True, {})
+
+    async def _playlistsearch(self, data, conn):
+        f = data.get("filter")
+
+        if f is not None:
+            req = "playlistsearch \"" + self.UNQUOTE.sub(r"\\\"", f) + "\""
+            completed, track = await self._send(req, conn)
+            t = {}
+            if completed and len(track) > 2:
+                for e in self.LINER(track)[:-2]:
+                    info = self.FIELD_SEP(e)
+                    t[info.group(1)] = info.group(2)
+            return (completed, t)
+        return (True, {})
+
+    async def _playlist(self, data, conn):
+        completed, plist = await self._send("playlist", conn)
+        li = []
+        for e in self.LINER(plist)[:-2]:
+            f = self.FIELD_SEP(e)
+            li.append(f.group(2))
+        return (completed, li)
 
     async def do(self, state, data):
         rs = {"result": None}
@@ -193,9 +226,9 @@ class MpdExecutorV1_0(FreeFlowExt):
             if op is None:
                 return state, (rs, rc)
 
-            a, b = await self._action[op](data, conn)
-            rs["result"] = b
-            rc = 0 if a else 103
+            completed, res = await self._action[op](data, conn)
+            rs["result"] = res
+            rc = 0 if completed else 103
         except Exception as ex:
             rc = 102
             self._logger.error(ex)
