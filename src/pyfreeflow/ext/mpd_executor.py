@@ -13,6 +13,7 @@ FILE = 1
 
 class MpdConnection():
     OK = re.compile(r'^OK MPD [0-9\.]+$'.encode("utf-8")).search
+    LOGGER = logging.getLogger(".".join([__name__, "MpdConnection"]))
 
     @classmethod
     async def write(cls, conn, data, buffer_size):
@@ -25,11 +26,14 @@ class MpdConnection():
     @classmethod
     async def close(cls, conn):
         close_cmd = "close\n".encode("utf-8")
-        wr = conn.get("writer")
-        wr.write(close_cmd)
-        await wr.drain()
-        wr.close()
-        await wr.wait_closed()
+        try:
+            wr = conn.get("writer")
+            wr.write(close_cmd)
+            await wr.drain()
+        except Exception as ex:
+            cls.LOGGER.warning(f"Connection {conn} error: {ex}")
+            wr.close()
+            await wr.wait_closed()
 
     @classmethod
     async def open(cls, conninfo):
@@ -41,7 +45,6 @@ class MpdConnection():
                 host=conninfo.get("host"),
                 port=conninfo.get("port"))
         res = await rd.read(10000)
-        print(rd, wr, res)
         if cls.OK(res) is not None:
             return {"reader": rd, "writer": wr, "type": SOCKET}
         wr.close()
