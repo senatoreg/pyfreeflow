@@ -365,6 +365,8 @@ class DataTransformerV1_0(FreeFlowExt):
             map = map,
             array = array,
             securexmlparser = securexmlparser,
+            time = os.time,
+            date = os.date,
           }
 
           -- Funzione per valutare codice in ambiente sicuro
