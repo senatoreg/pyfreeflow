@@ -47,6 +47,8 @@ class FreeFlowExt(metaclass=ExtRegister):
                         self.do(state, p[0]),
                         name=self._name + "-unpack-" + str(i)))
                     cur -= 1
+                else:
+                    _data.append(p)
 
             if len(aws) > 0:
                 done, pending = await asyncio.wait(
