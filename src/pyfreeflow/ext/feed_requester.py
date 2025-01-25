@@ -8,6 +8,7 @@ import asyncio
 import logging
 # import babel.dates
 import re
+import random
 from ..utils import asyncio_run, MimeTypeParser, SecureXMLParser, DateParser
 
 __TYPENAME__ = "FeedRequester"
@@ -282,14 +283,15 @@ class FeedRequesterV1_0(FreeFlowExt):
     CONTENT_TYPE_PATTERN2 = re.compile(r'\s*=\s*')
 
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
-                 max_retries=5, max_response_size=10485760, sslenabled=True,
-                 insecure=False, cafile=None, capath=None, cadata=None,
-                 max_tasks=4):
+                 max_retries=5, max_retry_sleep=10, max_response_size=10485760,
+                 sslenabled=True, insecure=False, cafile=None, capath=None,
+                 cadata=None, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
         self._url = url
         self._timeout = timeout
         self._max_retries = max_retries
+        self._max_retry_sleep = max_retry_sleep
         self._headers = headers
         self._method = method.upper()
         self._max_resp_size = max_response_size
@@ -437,14 +439,20 @@ class FeedRequesterV1_0(FreeFlowExt):
         return rdf
 
     async def _try_request(self, method, url, headers, params, data):
+        sleep = 0
+        max_sleep = int(self._max_retry_sleep / self._max_retries)
         for i in range(self._max_retries):
             try:
                 resp = await self._session.request(
                         method, url, headers=headers, params=params, data=data,
                         ssl=self._ssl_context, allow_redirects=True)
                 return resp
-            except aiohttp.ClientError:
-                await asyncio.sleep(1)
+            except aiohttp.ClientError as ex:
+                sleep = random.randint(sleep, (i + 1) * max_sleep)
+                self._logger.warning(
+                    f"error connecting '{url}' " +
+                    f"try {i + 1}/{self._max_retries} retry in {sleep}s: {ex}")
+                await asyncio.sleep(sleep)
         raise aiohttp.ClientError(f"cannot connect to {url}")
 
     def _parse_resp(self, resp, raw, url):
