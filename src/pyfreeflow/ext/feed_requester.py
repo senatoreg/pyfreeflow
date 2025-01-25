@@ -439,19 +439,19 @@ class FeedRequesterV1_0(FreeFlowExt):
         return rdf
 
     async def _try_request(self, method, url, headers, params, data):
-        sleep = 0
+        sleep = 1
         max_sleep = int(self._max_retry_sleep / self._max_retries)
-        for i in range(self._max_retries):
+        for i in range(1, self._max_retries + 1):
             try:
                 resp = await self._session.request(
                         method, url, headers=headers, params=params, data=data,
                         ssl=self._ssl_context, allow_redirects=True)
                 return resp
             except aiohttp.ClientError as ex:
-                sleep = random.randint(sleep, (i + 1) * max_sleep)
+                sleep = random.randint(sleep, i * max_sleep)
                 self._logger.warning(
                     f"error connecting '{url}' " +
-                    f"try {i + 1}/{self._max_retries} retry in {sleep}s: {ex}")
+                    f"try {i}/{self._max_retries} retry in {sleep}s: {ex}")
                 await asyncio.sleep(sleep)
         raise aiohttp.ClientError(f"cannot connect to {url}")
 
