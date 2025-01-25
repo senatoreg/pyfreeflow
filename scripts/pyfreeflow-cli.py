@@ -85,7 +85,7 @@ async def cli(argv):
     args = argparser.parse_args(argv)
     pyfreeflow.set_loglevel(to_loglevel(args.loglevel))
     if args.logfile:
-        handler = logging.FileHandler(args.logfile)
+        handler = logging.FileHandler(args.logfile, mode="a")
         pyfreeflow.add_loghandler(handler)
 
     with open(args.config, "r") as f:
