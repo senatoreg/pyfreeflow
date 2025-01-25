@@ -499,7 +499,7 @@ class FeedRequesterV1_0(FreeFlowExt):
             if len(raw) > self._max_resp_size:
                 self._logger.error(
                     "real response size %d exceeded max size %s",
-                    content_length, self._max_resp_size)
+                    len(raw), self._max_resp_size)
                 resp.release()
                 return (
                     {"req": {}, "userdata": userdata, "headers": {},
