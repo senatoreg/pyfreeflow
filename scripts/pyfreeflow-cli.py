@@ -97,12 +97,18 @@ async def cli(argv):
     assert ("pipeline" in config.keys())
     pipe = pyfreeflow.pipeline.Pipeline(**config.get("pipeline"))
     params = {k: EnvVarParser.parse(v) for k, v in config.get("args", {}).items()}
-    output = await pipe.run(params)
-    await pipe.fini()
+    rc = 0
+    try:
+        output = await pipe.run(params)
+        OUTPUT_FORMATTER[args.fmt](output[0], args.output)
+        rc = 0 if output[1] == 0 else 1
+    except Exception as ex:
+        pyfreeflow.logger.error(ex)
+        rc = 1
+    finally:
+        await pipe.fini()
 
-    OUTPUT_FORMATTER[args.fmt](output[0], args.output)
-
-    return output[1]
+    return rc
 
 
 def main(argv):
