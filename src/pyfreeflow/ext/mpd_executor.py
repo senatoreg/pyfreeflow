@@ -1,6 +1,5 @@
 from .types import FreeFlowExt
 import asyncio
-import aiofiles
 import re
 import logging
 from ..utils import EnvVarParser, asyncio_run
@@ -8,10 +7,54 @@ from ..utils import EnvVarParser, asyncio_run
 __TYPENAME__ = "MpdExecutor"
 
 
+SOCKET = 0
+FILE = 1
+
+
+class MpdConnection():
+    OK = re.compile(r'^OK MPD [0-9\.]+$'.encode("utf-8")).search
+
+    @classmethod
+    async def write(cls, conn, data, buffer_size):
+        if conn.get("type") == SOCKET:
+            wr = conn.get("writer")
+            wr.write(data.encode("utf-8"))
+            await wr.drain()
+            return await conn.get("reader").read(buffer_size)
+
+    @classmethod
+    async def close(cls, conn):
+        close_cmd = "close\n".encode("utf-8")
+        wr = conn.get("writer")
+        wr.write(close_cmd)
+        await wr.drain()
+        wr.close()
+        await wr.wait_closed()
+
+    @classmethod
+    async def open(cls, conninfo):
+        if conninfo.get("path") is not None:
+            rd, wr = await asyncio.open_unix_connection(
+                path=conninfo.get("path"))
+        else:
+            rd, wr = await asyncio.open_connection(
+                host=conninfo.get("host"),
+                port=conninfo.get("port"))
+        res = await rd.read(10000)
+        print(rd, wr, res)
+        if cls.OK(res) is not None:
+            return {"reader": rd, "writer": wr, "type": SOCKET}
+        wr.close()
+        await wr.wait_closed()
+        raise Exception("cannot connect to mpd")
+
+
 #
 # Connection Pool
 #
 class ConnectionPool():
+    OK = re.compile(r'OK$'.encode("utf-8")).search
+
     CLIENT = {}
     POOL = {}
     LOCK = asyncio.Lock()
@@ -37,13 +80,7 @@ class ConnectionPool():
         try:
             while not cls.POOL[client_name].empty():
                 conn = await cls.POOL[client_name].get()
-                wr = conn.get("writer")
-
-                wr.write("close\n".encode("utf-8"))
-                await wr.drain()
-
-                wr.close()
-                await wr.wait_closed()
+                await MpdConnection.close(conn)
         except Exception as ex:
             lock.release()
             raise ex
@@ -74,20 +111,7 @@ class ConnectionPool():
             raise ex
 
         conninfo = cls.CLIENT[client_name]["conninfo"]
-
-        if conninfo.get("path") is not None:
-            sock = await aiofiles.open(conninfo.get("path"))
-            return {"reader": sock, "writer": sock}
-        else:
-            rd, wr = await asyncio.open_connection(host=conninfo.get("host"),
-                                                   port=conninfo.get("port"))
-            res = await rd.read(1000)
-            ok = re.search(r'^OK'.encode("utf-8"), res) is not None
-            if ok:
-                return {"reader": rd, "writer": wr}
-            wr.close()
-            await wr.wait_closed()
-            raise Exception("cannot connect to mpd")
+        return await MpdConnection.open(conninfo)
 
     @classmethod
     async def release(cls, client_name, conn):
@@ -100,11 +124,7 @@ class ConnectionPool():
                 lock._value, lock._bound_value,
                 cls.POOL[client_name].qsize()))
         else:
-            wr = conn.get("writer")
-            wr.write("close\n".encode("utf-8"))
-            await wr.drain()
-            wr.close()
-            await wr.wait_closed()
+            await MpdConnection.close(conn)
 
     @staticmethod
     async def is_alive(conn):
