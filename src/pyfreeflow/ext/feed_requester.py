@@ -265,6 +265,9 @@ class FeedRequesterV1_0(FreeFlowExt):
     TAG_MATCHING_RE = re.compile(r"{(https?://[-a-zA-Z0-9@%._\+\-]+:?[0-9]*/?"
                                  + r"[a-zA-Z0-9_\.\+\-@%#&?/]*)/}"
                                  + r"([a-zA-Z0-9_\.\+\-@%#&?]*)")
+    VALUE_MALFORMED_RE = [
+        (re.compile(r'<\?(=|php)?[\w\d\s_();]*\?>'.encode()), "".encode()),
+    ]
 
     RSS20_TAG = FeedTagDefinition.RSS20_TAG | FeedTagDefinition.ITUNES_TAG | \
         FeedTagDefinition.MEDIA_RSS_TAG | FeedTagDefinition.RSS10_CONTENT_TAG | \
@@ -279,12 +282,14 @@ class FeedRequesterV1_0(FreeFlowExt):
     CONTENT_TYPE_PATTERN2 = re.compile(r'\s*=\s*')
 
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
-                 max_response_size=10485760, sslenabled=True, insecure=False,
-                 cafile=None, capath=None, cadata=None, max_tasks=4):
+                 max_retries=5, max_response_size=10485760, sslenabled=True,
+                 insecure=False, cafile=None, capath=None, cadata=None,
+                 max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
         self._url = url
         self._timeout = timeout
+        self._max_retries = max_retries
         self._headers = headers
         self._method = method.upper()
         self._max_resp_size = max_response_size
@@ -431,56 +436,79 @@ class FeedRequesterV1_0(FreeFlowExt):
 
         return rdf
 
+    async def _try_request(self, method, url, headers, params, data):
+        for i in range(self._max_retries):
+            try:
+                resp = await self._session.request(
+                        method, url, headers=headers, params=params, data=data,
+                        ssl=self._ssl_context, allow_redirects=True)
+                return resp
+            except aiohttp.ClientError:
+                await asyncio.sleep(1)
+        raise aiohttp.ClientError(f"cannot connect to {url}")
+
+    def _parse_resp(self, resp, raw, url):
+        mimetype = self._split_mimetype(
+            resp.headers.get("Content-Type"))
+
+        for expr in self.VALUE_MALFORMED_RE:
+            raw = expr[0].sub(expr[1], raw)
+
+        if MimeTypeParser.is_xml(mimetype.get("type")) or (
+                MimeTypeParser.is_html(mimetype.get("type")) and
+                raw[:5] == b'<?xml'):
+            body = SecureXMLParser.parse_bytes(raw)
+        else:
+            self._logger.warning(
+                "aiohttp request %s warning: response type '%s'",
+                url, mimetype)
+            body = {}
+        return body
+
     async def _do_request(self, method, url, headers=None, params=None,
                           data=None, userdata=None):
         try:
             await self._ensure_session()
+            resp = await self._try_request(method, url, headers, params, data)
 
-            async with self._session.request(
-                    method, url, headers=headers, params=params, data=data,
-                    ssl=self._ssl_context, allow_redirects=True) as resp:
+            if resp.status >= 400:
+                self._logger.error(f"'{url}' response code {resp.status}")
+                resp.release()
+                return (
+                    {"req": {}, "userdata": userdata, "headers": {},
+                     "body": {}}, 102)
 
-                if resp.status >= 400:
-                    self._logger.error(f"'{url}' response code {resp.status}")
-                    return (
-                        {"req": {}, "userdata": userdata, "headers": {},
-                         "body": {}}, 102)
+            content_length = int(resp.headers.get('Content-Length', 0))
+            if content_length > self._max_resp_size:
+                self._logger.error("response size %d exceeded max size %s",
+                                   content_length, self._max_resp_size)
+                resp.release()
+                return (
+                    {"req": {}, "userdata": userdata, "headers": {},
+                     "body": {}}, 101)
 
-                content_length = int(resp.headers.get('Content-Length', 0))
-                if content_length > self._max_resp_size:
-                    self._logger.error("response size %d exceeded max size %s",
-                                       content_length, self._max_resp_size)
-                    return (
-                        {"req": {}, "userdata": userdata, "headers": {},
-                         "body": {}}, 101)
+            raw = await resp.read()
+            if len(raw) > self._max_resp_size:
+                self._logger.error(
+                    "real response size %d exceeded max size %s",
+                    content_length, self._max_resp_size)
+                resp.release()
+                return (
+                    {"req": {}, "userdata": userdata, "headers": {},
+                     "body": {}}, 101)
 
-                raw = await resp.read()
-                if len(raw) > self._max_resp_size:
-                    self._logger.error(
-                        "real response size %d exceeded max size %s",
-                        content_length, self._max_resp_size)
-                    return (
-                        {"req": {}, "userdata": userdata, "headers": {},
-                         "body": {}}, 101)
-
-                req_info = {k: self._multidict_to_dict(v)
-                            for k, v in dict(
-                                    resp._request_info._asdict()).items()}
-                try:
-                    mimetype = self._split_mimetype(
-                        resp.headers.get("Content-Type"))
-                    if MimeTypeParser.is_xml(mimetype.get("type")):
-                        body = SecureXMLParser.parse_bytes(raw)
-                    else:
-                        self._logger.warning(
-                            "aiohttp request %s warning: response type '%s'",
-                            url, mimetype)
-                        body = {}
-                except Exception as ex:
-                    self._logger.error("feed load %s error: %s", url, ex)
-                    return (
-                        {"req": req_info, "userdata": userdata,
-                         "headers": dict(resp.headers), "body": {}}, 106)
+            req_info = {k: self._multidict_to_dict(v)
+                        for k, v in dict(
+                                resp._request_info._asdict()).items()}
+            try:
+                body = self._parse_resp(resp, raw, url)
+                resp.release()
+            except Exception as ex:
+                self._logger.error("feed load %s error: %s", url, ex)
+                resp.release()
+                return (
+                    {"req": req_info, "userdata": userdata,
+                     "headers": dict(resp.headers), "body": {}}, 106)
 
             try:
                 body = self._sanitize_feed(body)

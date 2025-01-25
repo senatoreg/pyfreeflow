@@ -32,12 +32,14 @@ class RestApiRequesterV1_0(FreeFlowExt):
     CONTENT_TYPE_PATTERN2 = re.compile(r'\s*=\s*')
 
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
-                 max_response_size=10485760, sslenabled=True, insecure=False,
-                 cafile=None, capath=None, cadata=None, max_tasks=4):
+                 max_retries=5, max_response_size=10485760, sslenabled=True,
+                 insecure=False, cafile=None, capath=None, cadata=None,
+                 max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
         self._url = EnvVarParser.parse(url)
         self._timeout = EnvVarParser.parse(timeout)
+        self._max_retries = max_retries
         self._headers = {k: EnvVarParser.parse(v) for k, v in headers.items()}
         self._method = method.upper()
         self._max_resp_size = max_response_size
@@ -114,56 +116,69 @@ class RestApiRequesterV1_0(FreeFlowExt):
             m[kv[0]] = kv[1]
         return m
 
+    async def _try_request(self, method, url, headers, params, data):
+        for i in range(self._max_retries):
+            try:
+                resp = await self._session.request(
+                        method, url, headers=headers, params=params, data=data,
+                        ssl=self._ssl_context, allow_redirects=True)
+                return resp
+            except aiohttp.ClientError:
+                await asyncio.sleep(1)
+        raise aiohttp.ClientError(f"cannot connect to {url}")
+
     async def _do_request(self, method, url, headers=None, params=None,
                           data=None, userdata=None):
         try:
             await self._ensure_session()
+            resp = await self._try_request(method, url, headers, params, data)
 
-            async with self._session.request(
-                    method, url, headers=headers, params=params, data=data,
-                    ssl=self._ssl_context, allow_redirects=True) as resp:
+            if resp.status >= 400:
+                self._logger.error(f"'{url}' response code {resp.status}")
+                resp.release()
+                return (
+                    {"req": {}, "userdata": userdata, "headers": {},
+                     "body": {}}, 102)
 
-                if resp.status >= 400:
-                    self._logger.error(f"'{url}' response code {resp.status}")
-                    return (
-                        {"req": {}, "userdata": userdata, "headers": {},
-                         "body": {}}, 102)
+            content_length = int(resp.headers.get("Content-Length", 0))
+            if content_length > self._max_resp_size:
+                self._logger.error("response size %d exceeded max size %s",
+                                   content_length, self._max_resp_size)
+                resp.release()
+                return (
+                    {"req": {}, "userdata": userdata, "headers": {},
+                     "body": {}}, 105)
 
-                content_length = int(resp.headers.get("Content-Length", 0))
-                if content_length > self._max_resp_size:
-                    self._logger.error("response size %d exceeded max size %s",
-                                       content_length, self._max_resp_size)
-                    return (
-                        {"req": {}, "userdata": userdata, "headers": {},
-                         "body": {}}, 105)
+            raw = await resp.read()
+            if len(raw) > self._max_resp_size:
+                self._logger.error("real response size %d exceeded max size %s",
+                                   content_length, self._max_resp_size)
+                resp.release()
+                return (
+                    {"req": {}, "userdata": userdata, "headers": {},
+                     "body": {}}, 105)
 
-                raw = await resp.read()
-                if len(raw) > self._max_resp_size:
-                    self._logger.error("real response size %d exceeded max size %s",
-                                       content_length, self._max_resp_size)
-                    return (
-                        {"req": {}, "userdata": userdata, "headers": {},
-                         "body": {}}, 105)
-
-                req_info = {k: self._multidict_to_dict(v)
-                            for k, v in dict(resp._request_info._asdict()).items()}
-                try:
-                    mimetype = self._split_mimetype(
-                        resp.headers.get("Content-Type"))
-                    if MimeTypeParser.is_json(mimetype.get(
-                            "type", "application/json")):
-                        body = json.loads(raw.decode(
-                            mimetype.get("charset", "utf-8")))
-                    elif MimeTypeParser.is_xml(mimetype):
-                        body = SecureXMLParser.parse_bytes(
-                            raw, max_size=self._max_resp_size)
-                    else:
-                        body = {}
-                except Exception as ex:
-                    self._logger.error("Exception in parsing content: %s", ex)
-                    return (
-                        {"req": req_info, "userdata": userdata,
-                         "headers": dict(resp.headers), "body": {}}, 106)
+            req_info = {k: self._multidict_to_dict(v)
+                        for k, v in dict(resp._request_info._asdict()).items()}
+            try:
+                mimetype = self._split_mimetype(
+                    resp.headers.get("Content-Type"))
+                if MimeTypeParser.is_json(mimetype.get(
+                        "type", "application/json")):
+                    body = json.loads(raw.decode(
+                        mimetype.get("charset", "utf-8")))
+                elif MimeTypeParser.is_xml(mimetype):
+                    body = SecureXMLParser.parse_bytes(
+                        raw, max_size=self._max_resp_size)
+                else:
+                    body = {}
+                resp.release()
+            except Exception as ex:
+                self._logger.error("Exception in parsing content: %s", ex)
+                resp.release()
+                return (
+                    {"req": req_info, "userdata": userdata,
+                     "headers": dict(resp.headers), "body": {}}, 106)
 
             return (
                 {"req": req_info, "userdata": userdata,
