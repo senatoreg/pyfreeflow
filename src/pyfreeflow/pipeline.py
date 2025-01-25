@@ -52,12 +52,9 @@ class Pipeline():
             cls_type = cls.get("type")
             cls_version = cls.get("version")
 
-            try:
-                assert (cls_name not in self._registry.keys())
-            except Exception as ex:
-                self._logger.error(
-                    "class {c} already in the registry: {e}".format(
-                        c=cls_name, e=ex))
+            if cls_name in self._registry.keys():
+                raise ValueError("class {c} already in the registry".format(
+                    c=cls_name))
 
             self._registry[cls_name] = ExtRegistry.get_registered_class(
                 cls_type, cls_version)(cls_name, **cls_config)
