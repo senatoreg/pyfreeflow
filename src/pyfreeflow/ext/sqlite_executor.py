@@ -90,8 +90,8 @@ class ConnectionPool():
     async def release(cls, client_name, conn):
         if client_name in cls.CLIENT.keys():
             lock = cls.CLIENT[client_name]["lock"]
-            await cls.POOL[client_name].put(conn)
-            # await conn.close()
+            # await cls.POOL[client_name].put(conn)
+            await conn.close()
             lock.release()
             cls.LOGGER.debug("RELEASE {} Lock[{}/{}/{}] Queue[{}]".format(
                 client_name, len(lock._waiters) if lock._waiters else 0,
