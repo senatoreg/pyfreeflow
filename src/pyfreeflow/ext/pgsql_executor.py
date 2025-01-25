@@ -81,7 +81,7 @@ class ConnectionPool():
                 lock._value, lock._bound_value,
                 cls.POOL[client_name].qsize()))
         else:
-            conn.close()
+            await conn.close()
 
     @staticmethod
     async def is_alive(conn):
