@@ -8,6 +8,7 @@ import ssl
 import asyncio
 import logging
 import random
+import urllib.parse
 from ..utils import MimeTypeParser, SecureXMLParser, EnvVarParser
 
 __TYPENAME__ = "RestApiRequester"
@@ -106,7 +107,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
 
     def _multidict_to_dict(self, x):
         if isinstance(x, yarl.URL):
-            return str(x)
+            return urllib.parse.unquote(str(x))
         elif isinstance(x, multidict._multidict.CIMultiDictProxy):
             return dict(x)
         return x
@@ -140,16 +141,17 @@ class RestApiRequesterV1_0(FreeFlowExt):
         raise aiohttp.ClientError(f"cannot connect to {url}")
 
     async def _do_request(self, method, url, headers=None, params=None,
-                          data=None, userdata=None):
+                          data=None):
         try:
             await self._ensure_session()
             resp = await self._try_request(method, url, headers, params, data)
+            redirect = [urllib.parse.unquote(str(x.url)) for x in resp.history]
 
             if resp.status >= 400:
                 self._logger.error(f"'{url}' response code {resp.status}")
                 resp.release()
                 return (
-                    {"req": {}, "userdata": userdata, "headers": {},
+                    {"req": {}, "redirect": redirect, "headers": {},
                      "body": {}}, 102)
 
             content_length = int(resp.headers.get("Content-Length", 0))
@@ -158,7 +160,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
                                    content_length, self._max_resp_size)
                 resp.release()
                 return (
-                    {"req": {}, "userdata": userdata, "headers": {},
+                    {"req": {}, "redirect": redirect, "headers": {},
                      "body": {}}, 105)
 
             raw = await resp.read()
@@ -167,7 +169,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
                                    len(raw), self._max_resp_size)
                 resp.release()
                 return (
-                    {"req": {}, "userdata": userdata, "headers": {},
+                    {"req": {}, "redirect": redirect, "headers": {},
                      "body": {}}, 105)
 
             req_info = {k: self._multidict_to_dict(v)
@@ -189,27 +191,27 @@ class RestApiRequesterV1_0(FreeFlowExt):
                 self._logger.error("Exception in parsing content: %s", ex)
                 resp.release()
                 return (
-                    {"req": req_info, "userdata": userdata,
+                    {"req": req_info, "redirect": redirect,
                      "headers": dict(resp.headers), "body": {}}, 106)
 
             return (
-                {"req": req_info, "userdata": userdata,
+                {"req": req_info, "redirect": redirect,
                  "headers": dict(resp.headers), "body": body}, 0)
 
         except aiohttp.ClientError as ex:
             self._logger.error("aiohttp request %s error: %s", url, ex)
             return (
-                {"req": {}, "userdata": userdata, "headers": {},
+                {"req": {}, "redirect": [], "headers": {},
                  "body": {}}, 101)
         except asyncio.exceptions.TimeoutError as ex:
             self._logger.error("aiohttp timeout on %s error %s", url, ex)
             return (
-                {"req": {}, "userdata": userdata, "headers": {},
+                {"req": {}, "redirect": [], "headers": {},
                  "body": {}}, 104)
         except Exception as ex:
             self._logger.error("aiohttp request %s error: %s", url, ex)
             return (
-                {"req": req_info, "userdata": userdata,
+                {"req": {}, "redirect": [],
                  "headers": dict(resp.headers), "body": {}}, 106)
 
     async def _do_get(self, state, data):
@@ -219,8 +221,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
         query_params = data.get("body", {})
 
         return await self._do_request(
-            "GET", url, headers=headers, params=query_params,
-            userdata=data.get("userdata"))
+            "GET", url, headers=headers, params=query_params)
 
     async def _do_post(self, state, data):
         headers = self._headers | data.get("headers", {})
@@ -229,8 +230,7 @@ class RestApiRequesterV1_0(FreeFlowExt):
         body_bytes = json.dumps(data.get("body", {})).encode("utf-8")
 
         return await self._do_request("POST", url, headers=headers,
-                                      data=body_bytes,
-                                      userdata=data.get("userdata"))
+                                      data=body_bytes)
 
     async def do(self, state, data):
         if isinstance(data, dict):
