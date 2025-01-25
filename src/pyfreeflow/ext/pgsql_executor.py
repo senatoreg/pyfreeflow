@@ -179,6 +179,7 @@ class PgSqlExecutorV1_0(FreeFlowExt):
                 placeholder = data.get("placeholder", {})
 
                 stm = self._stm.format(**placeholder)
+                self._logger.debug(f"executing statement: {stm}")
 
                 if value is not None:
                     if value and isinstance(value, list) and len(value) > 0:
