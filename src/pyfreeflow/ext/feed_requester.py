@@ -35,6 +35,10 @@ class FeedTagParser():
         return [{"url": content.get("url"), "type": content.get("type")}]
 
     @classmethod
+    def parse_enclosure(cls, a, b):
+        return cls.parse_content(a, b)
+
+    @classmethod
     def join_if(cls, a, sep=", "):
         return sep.join(a) if isinstance(a, list) else a
 
@@ -96,12 +100,8 @@ class FeedTagDefinition():
         "ttl": lambda a: ("ttl", SecureXMLParser.get_elem(a, ["ttl"], "text")),
         "image": lambda a: ("image", SecureXMLParser.get_elem(
             a, ["image"], "text")),
-        "enclosure": lambda a: ("media", [{
-            "url": SecureXMLParser.get_elem(
-                a, ["enclosure"], "attrs").get("url"),
-            "type": SecureXMLParser.get_elem(
-                a, ["enclosure"], "attrs").get("type"),
-        }]),
+        "enclosure": lambda a: ("media", FeedTagParser.parse_enclosure(
+            a, ["enclosure"])),
         "rating": lambda a: ("rating", SecureXMLParser.get_elem(
             a, ["rating"], "text")),
         "textInput": lambda a: ("textInput", SecureXMLParser.get_elem(
@@ -275,8 +275,8 @@ class FeedRequesterV1_0(FreeFlowExt):
     RDF_TAG = FeedTagDefinition.RSS10_TAG | FeedTagDefinition.RSS10_CONTENT_TAG \
         | FeedTagDefinition.DCMI_TAG
 
-    CONTENT_TYPE_PATTERN = re.compile(r';\s*')
-    CONTENT_TYPE_PATTERN2 = re.compile(r'\s*=\s*')
+    CONTENT_TYPE_PATTERN = re.compile(r";\s*")
+    CONTENT_TYPE_PATTERN2 = re.compile(r"\s*=\s*")
 
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
                  max_retries=5, max_retry_sleep=10, max_response_size=10485760,
@@ -365,18 +365,16 @@ class FeedRequesterV1_0(FreeFlowExt):
 
     def _fix_cdata(self, x, encoding="utf-8"):
         CDATA_FIX = [
-            (lambda a: re.compile(
-                r'([ \w\d]+>)(</title>)'.encode(encoding)).sub(
-                    r'\1]]>\2'.encode(encoding), a),
-             lambda a: re.compile(
-                 r'(<title>)(<[ \w\d]+|]])'.encode(encoding)).sub(
-                     r'\1<![CDATA[\2'.encode(encoding), a),
-             ),
+            lambda a: re.compile(
+                br"(?s)(<title>\s*)(?!(?:\s*<!\[CDATA\[))(.*?)(\s*</title>)").sub(
+                    br"\1<![CDATA[\2]]>\3", a),
+            lambda a: re.compile(
+                br"(?s)(<description>\s*)(?!(?:\s*<!\[CDATA\[))(.*?)(\s*</description>)").sub(
+                    br"\1<![CDATA[\2]]>\3", a),
         ]
 
         for fix in CDATA_FIX:
-            for op in fix:
-                x = op(x)
+            x = fix(x)
         return x
 
     def _sanitize_feed(self, data):
@@ -397,7 +395,7 @@ class FeedRequesterV1_0(FreeFlowExt):
         if not isinstance(data, dict) or "elem" not in data.keys():
             return data
 
-        for tag, value in data.get("elem", {}).items():
+        for tag in data.get("elem", {}).keys():
             if tag in self.RSS20_TAG.keys():
                 tag_name, tag_value = self.RSS20_TAG[tag](data)
                 if isinstance(tag_value, list):
@@ -416,7 +414,7 @@ class FeedRequesterV1_0(FreeFlowExt):
         if not isinstance(data, dict) or "elem" not in data.keys():
             return data
 
-        for tag, value in data.get("elem", {}).items():
+        for tag in data.get("elem", {}).keys():
             if tag in self.ATOM_TAG.keys():
                 tag_name, tag_value = self.ATOM_TAG[tag](data)
                 if isinstance(tag_value, list):
@@ -435,7 +433,7 @@ class FeedRequesterV1_0(FreeFlowExt):
         if not isinstance(data, dict) or "elem" not in data.keys():
             return data
 
-        for tag, value in data.get("elem", {}).items():
+        for tag in data.get("elem", {}).keys():
             if tag in self.RDF_TAG.keys():
                 tag_name, tag_value = self.RDF_TAG[tag](data)
                 if isinstance(tag_value, list):
@@ -474,10 +472,10 @@ class FeedRequesterV1_0(FreeFlowExt):
         encoding = mimetype.get("charset", "utf-8")
 
         VALUE_MALFORMED_RE = [
-            (re.compile(r'<\?(=|php)?[\w\d\s_();]*\?>'.encode(encoding)),
-             "".encode(encoding)),
+            (re.compile(br"<\?(=|php)?[\w\d\s_();]*\?>"), b""),
         ]
 
+        # raw = re.sub(r"\s*\n\s*".encode(encoding), r"".encode(encoding), raw)
         raw = self._fix_cdata(raw, encoding)
 
         for expr in VALUE_MALFORMED_RE:
