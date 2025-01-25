@@ -53,7 +53,7 @@ class Pipeline():
             cls_version = cls.get("version")
 
             if cls_name in self._registry.keys():
-                raise ValueError("class {c} already in the registry".format(
+                raise ValueError("node '{c}' already in the registry".format(
                     c=cls_name))
 
             self._registry[cls_name] = ExtRegistry.get_registered_class(
