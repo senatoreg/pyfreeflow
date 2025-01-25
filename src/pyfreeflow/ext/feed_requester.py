@@ -266,10 +266,6 @@ class FeedRequesterV1_0(FreeFlowExt):
     TAG_MATCHING_RE = re.compile(r"{(https?://[-a-zA-Z0-9@%._\+\-]+:?[0-9]*/?"
                                  + r"[a-zA-Z0-9_\.\+\-@%#&?/]*)/}"
                                  + r"([a-zA-Z0-9_\.\+\-@%#&?]*)")
-    VALUE_MALFORMED_RE = [
-        (re.compile(r'<\?(=|php)?[\w\d\s_();]*\?>'.encode()), "".encode()),
-    ]
-
     RSS20_TAG = FeedTagDefinition.RSS20_TAG | FeedTagDefinition.ITUNES_TAG | \
         FeedTagDefinition.MEDIA_RSS_TAG | FeedTagDefinition.RSS10_CONTENT_TAG | \
         FeedTagDefinition.DCMI_TAG | FeedTagDefinition.ATOM_TAG
@@ -367,6 +363,22 @@ class FeedRequesterV1_0(FreeFlowExt):
             m[kv[0]] = kv[1]
         return m
 
+    def _fix_cdata(self, x, encoding="utf-8"):
+        CDATA_FIX = [
+            (lambda a: re.compile(
+                r'([ \w\d]+>)(</title>)'.encode(encoding)).sub(
+                    r'\1]]>\2'.encode(encoding), a),
+             lambda a: re.compile(
+                 r'(<title>)(<[ \w\d]+|]])'.encode(encoding)).sub(
+                     r'\1<![CDATA[\2'.encode(encoding), a),
+             ),
+        ]
+
+        for fix in CDATA_FIX:
+            for op in fix:
+                x = op(x)
+        return x
+
     def _sanitize_feed(self, data):
         if isinstance(data, dict):
             new_data = {}
@@ -439,7 +451,7 @@ class FeedRequesterV1_0(FreeFlowExt):
         return rdf
 
     async def _try_request(self, method, url, headers, params, data):
-        sleep = 1
+        sleep = 0
         max_sleep = int(self._max_retry_sleep / self._max_retries)
         for i in range(1, self._max_retries + 1):
             try:
@@ -448,7 +460,7 @@ class FeedRequesterV1_0(FreeFlowExt):
                         ssl=self._ssl_context, allow_redirects=True)
                 return resp
             except aiohttp.ClientError as ex:
-                sleep = random.randint(sleep, i * max_sleep)
+                sleep = random.randint(sleep + 1, i * max_sleep)
                 self._logger.warning(
                     f"error connecting '{url}' " +
                     f"try {i}/{self._max_retries} retry in {sleep}s: {ex}")
@@ -459,7 +471,16 @@ class FeedRequesterV1_0(FreeFlowExt):
         mimetype = self._split_mimetype(
             resp.headers.get("Content-Type"))
 
-        for expr in self.VALUE_MALFORMED_RE:
+        encoding = mimetype.get("charset", "utf-8")
+
+        VALUE_MALFORMED_RE = [
+            (re.compile(r'<\?(=|php)?[\w\d\s_();]*\?>'.encode(encoding)),
+             "".encode(encoding)),
+        ]
+
+        raw = self._fix_cdata(raw, encoding)
+
+        for expr in VALUE_MALFORMED_RE:
             raw = expr[0].sub(expr[1], raw)
 
         if MimeTypeParser.is_xml(mimetype.get("type")) or (
@@ -508,6 +529,7 @@ class FeedRequesterV1_0(FreeFlowExt):
             req_info = {k: self._multidict_to_dict(v)
                         for k, v in dict(
                                 resp._request_info._asdict()).items()}
+
             try:
                 body = self._parse_resp(resp, raw, url)
                 resp.release()

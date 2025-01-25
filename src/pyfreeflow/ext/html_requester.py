@@ -119,7 +119,7 @@ class HtmlRequesterV1_0(FreeFlowExt):
         return m
 
     async def _try_request(self, method, url, headers, params, data):
-        sleep = 1
+        sleep = 0
         max_sleep = int(self._max_retry_sleep / self._max_retries)
         for i in range(1, self._max_retries + 1):
             try:
@@ -128,7 +128,7 @@ class HtmlRequesterV1_0(FreeFlowExt):
                         ssl=self._ssl_context, allow_redirects=True)
                 return resp
             except aiohttp.ClientError as ex:
-                sleep = random.randint(sleep, i * max_sleep)
+                sleep = random.randint(sleep + 1, i * max_sleep)
                 self._logger.warning(
                     f"error connecting '{url}' " +
                     f"try {i}/{self._max_retries} retry in {sleep}s: {ex}")
