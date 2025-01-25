@@ -98,6 +98,7 @@ async def cli(argv):
     pipe = pyfreeflow.pipeline.Pipeline(**config.get("pipeline"))
     params = {k: EnvVarParser.parse(v) for k, v in config.get("args", {}).items()}
     output = await pipe.run(params)
+    await pipe.fini()
 
     OUTPUT_FORMATTER[args.fmt](output[0], args.output)
 

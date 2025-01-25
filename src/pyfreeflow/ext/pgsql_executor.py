@@ -3,7 +3,7 @@ import psycopg
 import asyncio
 from cryptography.fernet import Fernet
 import logging
-from ..utils import EnvVarParser, asyncio_run
+from ..utils import EnvVarParser
 
 __TYPENAME__ = "PgSqlExecutor"
 
@@ -16,6 +16,10 @@ class ConnectionPool():
     POOL = {}
     LOCK = asyncio.Lock()
     LOGGER = logging.getLogger(".".join([__name__, "ConnectionPool"]))
+
+    @classmethod
+    def registered(cls, client_name):
+        return client_name in cls.CLIENT.keys()
 
     @classmethod
     def register(cls, client_name, conninfo, max_size=4):
@@ -158,7 +162,11 @@ class PgSqlExecutorV1_0(FreeFlowExt):
         await ConnectionPool.unregister(self._name)
 
     def __del__(self):
-        asyncio_run(ConnectionPool.unregister(self._name), force=True)
+        if ConnectionPool.registered(self._name):
+            self._logger.warning("object deleted before calling its fini()")
+
+    async def fini(self):
+        await ConnectionPool.unregister(self._name)
 
     async def do(self, state, data):
         if self._stm is None:

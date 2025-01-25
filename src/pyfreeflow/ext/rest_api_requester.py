@@ -8,7 +8,7 @@ import ssl
 import asyncio
 import logging
 import random
-from ..utils import asyncio_run, MimeTypeParser, SecureXMLParser, EnvVarParser
+from ..utils import MimeTypeParser, SecureXMLParser, EnvVarParser
 
 __TYPENAME__ = "RestApiRequester"
 
@@ -98,7 +98,11 @@ class RestApiRequesterV1_0(FreeFlowExt):
         await self._close()
 
     def __del__(self):
-        asyncio_run(self._close(), force=True)
+        if self._session and not self._session.closed:
+            self._logger.warning("object deleted before calling its fini()")
+
+    async def fini(self):
+        await self._close()
 
     def _multidict_to_dict(self, x):
         if isinstance(x, yarl.URL):

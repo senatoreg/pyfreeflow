@@ -2,7 +2,7 @@ from .types import FreeFlowExt
 import aiosqlite
 import asyncio
 import logging
-from ..utils import EnvVarParser, asyncio_run
+from ..utils import EnvVarParser
 
 __TYPENAME__ = "SqLiteExecutor"
 
@@ -15,6 +15,10 @@ class ConnectionPool():
     POOL = {}
     LOCK = asyncio.Lock()
     LOGGER = logging.getLogger(".".join([__name__, "ConnectionPool"]))
+
+    @classmethod
+    def registered(cls, client_name):
+        return client_name in cls.CLIENT.keys()
 
     @classmethod
     def register(cls, client_name, conninfo, pragma={}, extension=[],
@@ -35,16 +39,20 @@ class ConnectionPool():
             return
 
         lock = cls.CLIENT[client_name]["lock"]
-        await lock.acquire()
         try:
             while not cls.POOL[client_name].empty():
+                await lock.acquire()
+                cls.LOGGER.debug("UNREGISTER {} Lock[{}/{}/{}] Queue[{}]".format(
+                    client_name, len(lock._waiters) if lock._waiters else 0,
+                    lock._value, lock._bound_value,
+                    cls.POOL[client_name].qsize()))
                 conn = await cls.POOL[client_name].get()
                 await conn.close()
         except aiosqlite.Error as ex:
-            lock.release()
+            # lock.release()
             raise ex
 
-        lock.release()
+        # lock.release()
         del cls.CLIENT[client_name]
         del cls.POOL[client_name]
 
@@ -90,8 +98,8 @@ class ConnectionPool():
     async def release(cls, client_name, conn):
         if client_name in cls.CLIENT.keys():
             lock = cls.CLIENT[client_name]["lock"]
-            # await cls.POOL[client_name].put(conn)
-            await conn.close()
+            await cls.POOL[client_name].put(conn)
+            # await conn.close()
             lock.release()
             cls.LOGGER.debug("RELEASE {} Lock[{}/{}/{}] Queue[{}]".format(
                 client_name, len(lock._waiters) if lock._waiters else 0,
@@ -107,7 +115,7 @@ class ConnectionPool():
                 cur = await cur.execute("SELECT 1;")
                 d = await cur.fetchall()
                 del d
-                await conn.commit()
+                # await conn.commit()
             return True
         except aiosqlite.Error:
             return False
@@ -146,7 +154,11 @@ class SqLiteExecutorV1_0(FreeFlowExt):
         await ConnectionPool.unregister(self._name)
 
     def __del__(self):
-        asyncio_run(ConnectionPool.unregister(self._name), force=True)
+        if ConnectionPool.registered(self._name):
+            self._logger.warning("object deleted before calling its fini()")
+
+    async def fini(self):
+        await ConnectionPool.unregister(self._name)
 
     async def do(self, state, data):
         if self._stm is None:

@@ -17,6 +17,9 @@ class FreeFlowExt(metaclass=ExtRegister):
         self._name = name
         self._max_tasks = max_tasks
 
+    async def fini(self):
+        pass
+
     async def do(self, state, data):
         raise NotImplementedError
 

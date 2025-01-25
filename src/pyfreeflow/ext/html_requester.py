@@ -9,7 +9,7 @@ import logging
 # import babel.dates
 import re
 import random
-from ..utils import asyncio_run, MimeTypeParser, SecureXMLParser
+from ..utils import MimeTypeParser, SecureXMLParser
 
 __TYPENAME__ = "HtmlRequester"
 
@@ -98,7 +98,11 @@ class HtmlRequesterV1_0(FreeFlowExt):
         await self._close()
 
     def __del__(self):
-        asyncio_run(self._close(), force=True)
+        if self._session and not self._session.closed:
+            self._logger.warning("object deleted before calling its fini()")
+
+    async def fini(self):
+        await self._close()
 
     def _multidict_to_dict(self, x):
         if isinstance(x, yarl.URL):

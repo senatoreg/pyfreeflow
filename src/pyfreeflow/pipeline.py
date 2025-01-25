@@ -63,9 +63,14 @@ class Pipeline():
         self._tree = list(nx.topological_sort(self._G))
 
     def __del__(self):
+        if len(self._registry) > 0:
+            self._logger.warning("object deleted before calling its fini()")
+
+    async def fini(self):
         keys = [x for x in self._registry.keys()]
         for k in keys:
             cls = self._registry.pop(k)
+            await cls.fini()
             del cls
 
     async def _cleanup(self):
