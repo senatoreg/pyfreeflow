@@ -17,10 +17,12 @@ class ConnectionPool():
     LOGGER = logging.getLogger(".".join([__name__, "ConnectionPool"]))
 
     @classmethod
-    def register(cls, client_name, conninfo, extension=[], max_size=4):
+    def register(cls, client_name, conninfo, pragma={}, extension=[],
+                 max_size=4):
         if client_name not in cls.CLIENT.keys():
             cls.CLIENT[client_name] = {
                 "conninfo": conninfo,
+                "pragma": pragma,
                 "extension": extension,
                 "lock": asyncio.BoundedSemaphore(max_size)}
 
@@ -71,7 +73,14 @@ class ConnectionPool():
 
         db = await aiosqlite.connect(**conninfo)
         db.text_factory = lambda x: x.decode(errors='ignore')
+
+        # default check foreign keys
         await db.execute("PRAGMA foreign_keys = ON;")
+
+        for pragma_name, pragma_value in cls.CLIENT[client_name]["pragma"].items():
+            await db.execute("PRAGMA {n} = {v};".format(
+                n=pragma_name, v=pragma_value))
+
         await db.enable_load_extension(True)
         for ext in cls.CLIENT[client_name]["extension"]:
             await db.load_extension(ext)
@@ -81,15 +90,15 @@ class ConnectionPool():
     async def release(cls, client_name, conn):
         if client_name in cls.CLIENT.keys():
             lock = cls.CLIENT[client_name]["lock"]
-            # await cls.POOL[client_name].put(conn)
-            await conn.close()
+            await cls.POOL[client_name].put(conn)
+            # await conn.close()
             lock.release()
             cls.LOGGER.debug("RELEASE {} Lock[{}/{}/{}] Queue[{}]".format(
                 client_name, len(lock._waiters) if lock._waiters else 0,
                 lock._value, lock._bound_value,
                 cls.POOL[client_name].qsize()))
         else:
-            conn.close()
+            await conn.close()
 
     @staticmethod
     async def is_alive(conn):
@@ -98,7 +107,7 @@ class ConnectionPool():
                 cur = await cur.execute("SELECT 1;")
                 d = await cur.fetchall()
                 del d
-            await conn.commit()
+                await conn.commit()
             return True
         except aiosqlite.Error:
             return False
@@ -111,7 +120,7 @@ class SqLiteExecutorV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name, path, statement=None, param={},
+    def __init__(self, name, path, statement=None, param={}, pragma={},
                  extension=[], max_connections=4, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
@@ -123,6 +132,7 @@ class SqLiteExecutorV1_0(FreeFlowExt):
         assert (self._stm is not None)
 
         ConnectionPool.register(self._name, self._conninfo,
+                                {k: EnvVarParser.parse(v) for k, v in pragma.items()},
                                 [EnvVarParser.parse(x) for x in extension],
                                 max_size=max_connections)
 
