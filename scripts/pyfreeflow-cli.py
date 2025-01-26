@@ -95,9 +95,12 @@ async def cli(argv):
         pyfreeflow.load_extension(ext)
 
     assert ("pipeline" in config.keys())
-    pipe = pyfreeflow.pipeline.Pipeline(**config.get("pipeline"))
+    pipe = pyfreeflow.pipeline.Pipeline()
+    await pipe.init(**config.get("pipeline"))
+
     params = {k: EnvVarParser.parse(v) for k, v in config.get("args", {}).items()}
     rc = 0
+
     try:
         output = await pipe.run(params)
         OUTPUT_FORMATTER[args.fmt](output[0], args.output)

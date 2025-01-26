@@ -34,14 +34,18 @@ digraph:
 
 
 class Pipeline():
-    def __init__(self, node, digraph, last=None, name="stream"):
-        self._name = name
+    def __init__(self):
         self._registry = {}
         self._data = {}
         self._state = {}
-        self._last = last
         self._lock = asyncio.Lock()
         self._cond = asyncio.Condition()
+        self._G = None
+        self._tree = None
+
+    async def init(self, node, digraph, last=None, name="stream"):
+        self._name = name
+        self._last = last
 
         self._logger = logging.getLogger(".".join([__name__, "Pipeline",
                                                    self._name]))
@@ -53,6 +57,7 @@ class Pipeline():
             cls_version = cls.get("version")
 
             if cls_name in self._registry.keys():
+                await self.fini()
                 raise ValueError("node '{c}' already in the registry".format(
                     c=cls_name))
 
@@ -67,6 +72,9 @@ class Pipeline():
     def __del__(self):
         if len(self._registry) > 0:
             self._logger.warning("object deleted before calling its fini()")
+
+    def configured(self):
+        return len(self._registry) > 0 and self._G is not None and self._tree is not None
 
     async def fini(self):
         keys = [x for x in self._registry.keys()]
@@ -96,6 +104,9 @@ class Pipeline():
                 self._cond.notify()
 
     async def run(self, data={}):
+        if not self.configured():
+            raise RuntimeError("pipeline executed without being configured")
+
         async with self._lock:
             degrees = {x[0]: x[1] for x in self._G.in_degree()}
             loop = asyncio.get_running_loop()
