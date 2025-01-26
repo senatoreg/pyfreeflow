@@ -34,9 +34,10 @@ class DataTransformerV1_0(FreeFlowExt):
     __typename__ = __TYPENAME__
     __version__ = "1.0"
 
-    def __init__(self, name, transformer="", secret=None, force=False,
-                 max_tasks=4):
+    def __init__(self, name, transformer="", secret=None, userdefined=False,
+                 force=False, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
+        self._userdefined = userdefined
         self._force = force
         self._env = self._create_safe_lua_env()
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
@@ -454,7 +455,7 @@ class DataTransformerV1_0(FreeFlowExt):
             _data = data[0]
             err = data[1] != 0
 
-        if err:
+        if err and not self._force:
             return state, (None, 103)
 
         try:
@@ -465,7 +466,7 @@ class DataTransformerV1_0(FreeFlowExt):
             d = self._lua_to_py(d)
 
             deepupdate(state, s)
-            if not self._force:
+            if not self._userdefined:
                 return state, (d, 0)
             else:
                 return state, d
