@@ -326,9 +326,9 @@ class SecureXMLParser:
             return {root.tag: cls._element_to_dict(root, max_depth,
                                                    strip_whitespace)}
         except lxml.etree.XMLSyntaxError as e:
-            raise ValueError(f"XML malformato: {e}")
+            raise ValueError(f"XML malformed: {e}")
         except Exception as e:
-            raise RuntimeError(f"Errore durante il parsing: {e}")
+            raise RuntimeError(f"parsing error: {e}")
 
     @classmethod
     def get_elem(cls, a, b, c=None):
