@@ -481,7 +481,7 @@ class FeedRequesterV1_0(FreeFlowExt):
         ]
 
         # raw = re.sub(r"\s*\n\s*".encode(encoding), r"".encode(encoding), raw)
-        raw = self._fix_cdata(raw, encoding)
+        #raw = self._fix_cdata(raw, encoding)
 
         for expr in VALUE_MALFORMED_RE:
             raw = expr[0].sub(expr[1], raw)
@@ -489,7 +489,14 @@ class FeedRequesterV1_0(FreeFlowExt):
         if MimeTypeParser.is_xml(mimetype.get("type")) or (
                 MimeTypeParser.is_html(mimetype.get("type")) and
                 raw[:5] == b'<?xml'):
-            body = SecureXMLParser.parse_bytes(raw)
+            try:
+                body = SecureXMLParser.parse_bytes(raw)
+            except:
+                self._logger.warning(
+                    "parsing error trying to fix cdata for %s",
+                    url)
+                raw = self._fix_cdata(raw, encoding)
+                body = SecureXMLParser.parse_bytes(raw)
         else:
             self._logger.warning(
                 "aiohttp request %s warning: response type '%s'",
