@@ -327,10 +327,24 @@ class FeedRequesterV1_0(FreeFlowExt):
         return isinstance(config, dict) and len([k for k in config.keys()
                                                  if k in keys]) > 0
 
+    async def _on_request_start(
+            self, session, trace_config_ctx, params):
+        trace_config_ctx.url = params.url
+        trace_config_ctx.start = asyncio.get_event_loop().time()
+
+    async def _on_request_end(self, session, trace_config_ctx, params):
+        elapsed = asyncio.get_event_loop().time() - trace_config_ctx.start
+        self._logger.debug("Request to {} took {}".format(trace_config_ctx.url,
+                                                          elapsed))
+
     async def _ensure_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
             t = aiohttp.ClientTimeout(total=self._timeout)
-            self._session = aiohttp.ClientSession(timeout=t)
+            trace_config = aiohttp.TraceConfig()
+            trace_config._on_request_start(self._on_request_start)
+            trace_config._on_request_end(self._on_request_end)
+            self._session = aiohttp.ClientSession(
+                trace_configs=[trace_config], timeout=t)
 
     async def _close(self):
         if self._session and not self._session.closed:
