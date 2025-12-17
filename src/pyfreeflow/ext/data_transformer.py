@@ -3,6 +3,7 @@ import logging
 import datetime as dt
 import xxhash
 import json
+import asyncio
 from decimal import Decimal
 from cryptography.fernet import Fernet
 from ..utils import deepupdate, DurationParser, EnvVarParser, DateParser
@@ -459,11 +460,14 @@ class DataTransformerV1_0(FreeFlowExt):
             return state, (None, 103)
 
         try:
+            start = asyncio.get_event_loop().time()
             s, d = self._transformer(self._py_to_lua(state),
                                      self._py_to_lua(_data))
 
             s = self._lua_to_py(s)
             d = self._lua_to_py(d)
+            stop = asyncio.get_event_loop().time()
+            self._logger.debug("transformation took {} s".format(stop - start))
 
             deepupdate(state, s)
             if not self._userdefined:
