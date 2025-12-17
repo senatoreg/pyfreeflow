@@ -334,7 +334,7 @@ class FeedRequesterV1_0(FreeFlowExt):
 
     async def _on_request_end(self, session, trace_config_ctx, params):
         elapsed = asyncio.get_event_loop().time() - trace_config_ctx.start
-        self._logger.debug("Request to {} took {}".format(trace_config_ctx.url,
+        self._logger.debug("Request to {} took {} s".format(trace_config_ctx.url,
                                                           elapsed))
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
