@@ -382,6 +382,12 @@ class FeedRequesterV1_0(FreeFlowExt):
             m[kv[0]] = kv[1]
         return m
 
+    def _fix_XML10_unicode(self, x):
+        UNICODE = {b'\x1f': b'\x09'}
+        for k, v in UNICODE.items():
+            x = x.replace(k, v)
+        return x
+
     def _fix_cdata(self, x, encoding="utf-8"):
         CDATA_FIX = [
             lambda a: re.compile(
@@ -504,8 +510,9 @@ class FeedRequesterV1_0(FreeFlowExt):
                 MimeTypeParser.is_html(mimetype.get("type")) and
                 raw[:5] == b'<?xml'):
             try:
-                body = SecureXMLParser.parse_bytes(raw)
-            except:
+                body = SecureXMLParser.parse_bytes(
+                    self._fix_XML10_unicode(raw))
+            except Exception:
                 self._logger.warning(
                     "parsing error trying to fix cdata for %s",
                     url)
