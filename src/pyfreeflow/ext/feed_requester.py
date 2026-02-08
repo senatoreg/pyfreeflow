@@ -490,7 +490,7 @@ class FeedRequesterV1_0(FreeFlowExt):
                 await asyncio.sleep(sleep)
         raise aiohttp.ClientError(f"cannot connect to {url}")
 
-    def _parse_resp(self, resp, raw, url):
+    def _parse_resp(self, resp, raw, url, huge=False):
         mimetype = self._split_mimetype(
             resp.headers.get("Content-Type"))
 
@@ -512,14 +512,15 @@ class FeedRequesterV1_0(FreeFlowExt):
             try:
                 body = SecureXMLParser.parse_bytes(
                     self._fix_XML10_unicode(raw),
-                    max_size=self._max_resp_size)
+                    max_size=self._max_resp_size,
+                    huge_tree=huge)
             except Exception:
                 self._logger.warning(
                     "parsing error trying to fix cdata for %s",
                     url)
                 raw = self._fix_cdata(raw, encoding)
                 body = SecureXMLParser.parse_bytes(
-                    raw, max_size=self._max_resp_size)
+                    raw, max_size=self._max_resp_size, huge_tree=huge)
         else:
             self._logger.warning(
                 "aiohttp request %s warning: response type '%s'",
@@ -528,7 +529,7 @@ class FeedRequesterV1_0(FreeFlowExt):
         return body
 
     async def _do_request(self, method, url, headers=None, params=None,
-                          data=None):
+                          data=None, huge=False):
         try:
             await self._ensure_session()
             resp = await self._try_request(method, url, headers, params, data)
@@ -565,7 +566,7 @@ class FeedRequesterV1_0(FreeFlowExt):
                                 resp._request_info._asdict()).items()}
 
             try:
-                body = self._parse_resp(resp, raw, url)
+                body = self._parse_resp(resp, raw, url, huge)
                 resp.release()
             except Exception as ex:
                 self._logger.error("feed load %s error: %s", url, ex)
@@ -618,7 +619,8 @@ class FeedRequesterV1_0(FreeFlowExt):
         query_params = data.get("body", {})
 
         return await self._do_request(
-            "GET", url, headers=headers, params=query_params)
+            "GET", url, headers=headers, params=query_params,
+            huge=data.get("huge", False))
 
     async def _do_post(self, state, data):
         headers = self._headers | data.get("headers", {})
@@ -627,7 +629,8 @@ class FeedRequesterV1_0(FreeFlowExt):
         body_bytes = json.dumps(data.get("body", {})).encode("utf-8")
 
         return await self._do_request("POST", url, headers=headers,
-                                      data=body_bytes)
+                                      data=body_bytes,
+                                      huge=data.get("huge", False))
 
     async def do(self, state, data):
         if isinstance(data, dict):
