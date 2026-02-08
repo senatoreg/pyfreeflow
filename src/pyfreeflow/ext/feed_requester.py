@@ -282,7 +282,7 @@ class FeedRequesterV1_0(FreeFlowExt):
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
                  max_retries=5, max_retry_sleep=10, max_response_size=10485760,
                  sslenabled=True, insecure=False, cafile=None, capath=None,
-                 cadata=None, max_tasks=4):
+                 huge=False, cadata=None, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
         self._url = url
@@ -292,6 +292,7 @@ class FeedRequesterV1_0(FreeFlowExt):
         self._headers = headers
         self._method = method.upper()
         self._max_resp_size = max_response_size
+        self._huge = huge
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))
@@ -513,14 +514,15 @@ class FeedRequesterV1_0(FreeFlowExt):
                 body = SecureXMLParser.parse_bytes(
                     self._fix_XML10_unicode(raw),
                     max_size=self._max_resp_size,
-                    huge_tree=huge)
+                    huge_tree=self._huge or huge)
             except Exception:
                 self._logger.warning(
                     "parsing error trying to fix cdata for %s",
                     url)
                 raw = self._fix_cdata(raw, encoding)
                 body = SecureXMLParser.parse_bytes(
-                    raw, max_size=self._max_resp_size, huge_tree=huge)
+                    raw, max_size=self._max_resp_size,
+                    huge_tree=self._huge or huge)
         else:
             self._logger.warning(
                 "aiohttp request %s warning: response type '%s'",
