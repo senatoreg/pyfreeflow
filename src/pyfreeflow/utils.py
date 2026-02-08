@@ -175,7 +175,7 @@ class SecureXMLParser:
         """Valida la dimensione del contenuto."""
         size = len(content.encode('utf-8') if isinstance(content, str) else content)
         if size > max_size:
-            raise ValueError(f"XML troppo grande: {size} bytes (max: {max_size})")
+            raise ValueError(f"XML too big: {size} bytes (max: {max_size})")
 
     @classmethod
     def _element_to_dict(cls, element, max_depth, strip_whitespace,
@@ -191,7 +191,7 @@ class SecureXMLParser:
             Dizionario con struttura personalizzata
         """
         if depth > max_depth:
-            raise ValueError(f"XML troppo profondo: superata profondità massima di {max_depth}")
+            raise ValueError(f"XML too deep: max value {max_depth}")
 
         # result = {}
 

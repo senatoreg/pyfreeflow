@@ -511,13 +511,15 @@ class FeedRequesterV1_0(FreeFlowExt):
                 raw[:5] == b'<?xml'):
             try:
                 body = SecureXMLParser.parse_bytes(
-                    self._fix_XML10_unicode(raw))
+                    self._fix_XML10_unicode(raw),
+                    max_size=self._max_resp_size)
             except Exception:
                 self._logger.warning(
                     "parsing error trying to fix cdata for %s",
                     url)
                 raw = self._fix_cdata(raw, encoding)
-                body = SecureXMLParser.parse_bytes(raw)
+                body = SecureXMLParser.parse_bytes(
+                    raw, max_size=self._max_resp_size)
         else:
             self._logger.warning(
                 "aiohttp request %s warning: response type '%s'",
