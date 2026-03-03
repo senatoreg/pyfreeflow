@@ -37,7 +37,7 @@ class HtmlRequesterV1_0(FreeFlowExt):
     def __init__(self, name, url, method="GET", headers={}, timeout=300,
                  max_retries=5, max_retry_sleep=10, max_response_size=10485760,
                  sslenabled=True, insecure=False, cafile=None, capath=None,
-                 cadata=None, max_tasks=4):
+                 huge=False, cadata=None, max_tasks=4):
         super().__init__(name, max_tasks=max_tasks)
 
         self._url = url
@@ -47,6 +47,7 @@ class HtmlRequesterV1_0(FreeFlowExt):
         self._headers = headers
         self._method = method.upper()
         self._max_resp_size = max_response_size
+        self._huge = huge
 
         self._logger = logging.getLogger(".".join([__name__, self.__typename__,
                                                    self._name]))
@@ -155,7 +156,7 @@ class HtmlRequesterV1_0(FreeFlowExt):
         raise aiohttp.ClientError(f"cannot connect to {url}")
 
     async def _do_request(self, method, url, headers=None, params=None,
-                          data=None):
+                          data=None, huge=False):
         try:
             await self._ensure_session()
 
@@ -194,8 +195,10 @@ class HtmlRequesterV1_0(FreeFlowExt):
                 mimetype = self._split_mimetype(
                     resp.headers.get("Content-Type"))
                 if MimeTypeParser.is_html(mimetype.get("type")):
-                    body = SecureXMLParser.parse_string(raw.decode(
-                        mimetype.get("charset", "utf-8")), html=True)
+                    body = SecureXMLParser.parse_string(
+                        raw.decode(mimetype.get("charset", "utf-8")),
+                        huge_tree=self._huge or huge,
+                        html=True)
                 else:
                     self._logger.warning(
                         "aiohttp request %s warning: response type '%s'",
@@ -236,7 +239,8 @@ class HtmlRequesterV1_0(FreeFlowExt):
         query_params = data.get("body", {})
 
         return await self._do_request(
-            "GET", url, headers=headers, params=query_params)
+            "GET", url, headers=headers, params=query_params,
+            huge=data.get("huge", False))
 
     async def _do_post(self, state, data):
         headers = self._headers | data.get("headers", {})
@@ -245,7 +249,8 @@ class HtmlRequesterV1_0(FreeFlowExt):
         body_bytes = json.dumps(data.get("body", {})).encode("utf-8")
 
         return await self._do_request("POST", url, headers=headers,
-                                      data=body_bytes)
+                                      data=body_bytes,
+                                      huge=data.get("huge", False))
 
     async def do(self, state, data):
         if isinstance(data, dict):
