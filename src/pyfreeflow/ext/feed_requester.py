@@ -69,7 +69,8 @@ class FeedTagDefinition():
         "item": lambda a: ("entry", SecureXMLParser.get_elem(
             a, ["item"])),
         "title": lambda a: ("title", SecureXMLParser.get_elem(
-            a, ["title"], "text")),
+            a, ["title"], "text") or SecureXMLParser.get_elem(
+            a, ["title", "a"], "text")),
         "link": lambda a: ("link", [{"href": SecureXMLParser.get_elem(
             a, ["link"], "text"), "rel": "alternate"}]),
         "description": lambda a: ("description", SecureXMLParser.get_elem(
