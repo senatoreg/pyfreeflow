@@ -10,6 +10,8 @@ import logging
 import urllib.parse
 import re
 import random
+from lxml import html as lxmlhtml
+import html
 from ..utils import MimeTypeParser, SecureXMLParser, DateParser
 
 __TYPENAME__ = "FeedRequester"
@@ -28,6 +30,10 @@ run parameter:
 
 
 class FeedTagParser():
+    JOIN_PATTERN = re.compile(r'[\n\r]')
+    CDATA_ENTRY = re.compile(r'<!\[CDATA\[', flags=re.IGNORECASE)
+    CDATA_EXIT = re.compile(r'\]\]>', flags=re.IGNORECASE)
+
     @classmethod
     def parse_content(cls, a, b):
         content = SecureXMLParser.get_elem(a, b, "attrs")
@@ -61,6 +67,41 @@ class FeedTagParser():
             return [{"href": x.get(b), "rel": x.get("rel", "alternate")} for x in a]
         return [{"href": a.get(b), "rel": a.get("rel", "alternate")}]
 
+    @classmethod
+    def content_to_plain_text(cls, a):
+        if isinstance(a, str):
+            a = cls.JOIN_PATTERN.sub(r' ', a)
+            a = cls.CDATA_ENTRY.sub(r'', a)
+            a = cls.CDATA_EXIT.sub(r'', a)
+
+            text = a.strip()
+
+            if len(text) == 0:
+                return a
+            raw_html = html.unescape(text)
+            tree = lxmlhtml.fromstring(raw_html)
+
+            # Definiamo i tag da rimuovere completamente (incluso il contenuto)
+            tags_to_remove = ["style", "script", "iframe",
+                              "head", "title", "meta"]
+
+            # In lxml si usa drop_tree() per eliminare il tag e i suoi figli
+            for tag in tags_to_remove:
+                for el in tree.xpath(f"//{tag}"):
+                    el.drop_tree()
+
+            # Rimuove i commenti
+            for comment in tree.xpath("//comment()"):
+                p = comment.getparent()
+                if p is not None:
+                    p.remove(comment)
+
+            # Estrae il testo (equivalente a get_text)
+            # join(text_content().split()) simula il separator e lo strip
+            return " ".join(tree.text_content().split())
+        else:
+            return a
+
 
 class FeedTagDefinition():
     RSS20_TAG = {
@@ -68,13 +109,17 @@ class FeedTagDefinition():
             a, ["channel"], "elem")),
         "item": lambda a: ("entry", SecureXMLParser.get_elem(
             a, ["item"])),
-        "title": lambda a: ("title", SecureXMLParser.get_elem(
-            a, ["title"], "text") or SecureXMLParser.get_elem(
-            a, ["title", "a"], "text")),
+        "title": lambda a: (
+            "title",
+            FeedTagParser.content_to_plain_text(SecureXMLParser.get_elem(
+                a, ["title"], "text") or SecureXMLParser.get_elem(
+                    a, ["title", "a"], "text"))),
         "link": lambda a: ("link", [{"href": SecureXMLParser.get_elem(
             a, ["link"], "text"), "rel": "alternate"}]),
-        "description": lambda a: ("description", SecureXMLParser.get_elem(
-            a, ["description"], "text")),
+        "description": lambda a: (
+            "description",
+            FeedTagParser.content_to_plain_text(SecureXMLParser.get_elem(
+                a, ["description"], "text"))),
         "language": lambda a: ("language", SecureXMLParser.get_elem(
             a, ["language"], "text")),
         "copyright": lambda a: ("copyright", SecureXMLParser.get_elem(
@@ -135,8 +180,9 @@ class FeedTagDefinition():
             "title", SecureXMLParser.get_elem(
                 a, ["{http://www.w3.org/2005/Atom}title"], "text")),
         "{http://www.w3.org/2005/Atom}content": lambda a: (
-            "content", SecureXMLParser.get_elem(
-                a, ["{http://www.w3.org/2005/Atom}content"], "text")),
+            "content",
+            FeedTagParser.content_to_plain_text(SecureXMLParser.get_elem(
+                a, ["{http://www.w3.org/2005/Atom}content"], "text"))),
         "{http://www.w3.org/2005/Atom}author": lambda a:
         ("author", FeedTagParser.tolist_if(SecureXMLParser.get_elem(a, [
             "{http://www.w3.org/2005/Atom}author",
@@ -158,9 +204,10 @@ class FeedTagDefinition():
                 a, ["{http://www.itunes.com/dtds/podcast-1.0.dtd}author"],
                 "text"))),
         "{http://www.itunes.com/dtds/podcast-1.0.dtd}summary": lambda a: (
-            "description", SecureXMLParser.get_elem(
+            "description",
+            FeedTagParser.content_to_plain_text(SecureXMLParser.get_elem(
                 a, ["{http://www.itunes.com/dtds/podcast-1.0.dtd}summary"],
-                "text")),
+                "text"))),
         "{http://www.itunes.com/dtds/podcast-1.0.dtd}category": lambda a: (
             "category", SecureXMLParser.get_elem(
                 a, ["{http://www.itunes.com/dtds/podcast-1.0.dtd}category"],
@@ -180,9 +227,10 @@ class FeedTagDefinition():
                 a, ["{http://search.yahoo.com/mrss}credit"],
                 "text"))),
         "{http://search.yahoo.com/mrss}description": lambda a: (
-            "description", SecureXMLParser.get_elem(
+            "description",
+            FeedTagParser.content_to_plain_text(SecureXMLParser.get_elem(
                 a, ["{http://search.yahoo.com/mrss}description"],
-                "text")),
+                "text"))),
         "{http://search.yahoo.com/mrss}content": lambda a: (
             "media", FeedTagParser.parse_content(
                 a, ["{http://search.yahoo.com/mrss}content"])),
@@ -208,8 +256,9 @@ class FeedTagDefinition():
             "title", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0}title"], "text")),
         "{http://purl.org/rss/1.0}description": lambda a: (
-            "description", SecureXMLParser.get_elem(
-                a, ["{http://purl.org/rss/1.0}description"], "text")),
+            "description",
+            FeedTagParser.content_to_plain_text(SecureXMLParser.get_elem(
+                a, ["{http://purl.org/rss/1.0}description"], "text"))),
         "{http://purl.org/rss/1.0}item": lambda a: (
             "entry", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0}item"])),
@@ -221,9 +270,10 @@ class FeedTagDefinition():
 
     RSS10_CONTENT_TAG = {
         "{http://purl.org/rss/1.0/modules/content}encoded": lambda a: (
-            "content", SecureXMLParser.get_elem(
+            "content",
+            FeedTagParser.content_to_plain_text(SecureXMLParser.get_elem(
                 a, ["{http://purl.org/rss/1.0/modules/content}encoded"],
-                "text")),
+                "text"))),
     }
 
     DCMI_TAG = {
@@ -235,8 +285,9 @@ class FeedTagDefinition():
             "published", DateParser.parse_date(SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}date"], "text"))),
         "{http://purl.org/dc/elements/1.1}description": lambda a: (
-            "description", SecureXMLParser.get_elem(
-                a, ["{http://purl.org/dc/elements/1.1}description"], "text")),
+            "description",
+            FeedTagParser.content_to_plain_text(SecureXMLParser.get_elem(
+                a, ["{http://purl.org/dc/elements/1.1}description"], "text"))),
         "{http://purl.org/dc/elements/1.1}type": lambda a: (
             "type", SecureXMLParser.get_elem(
                 a, ["{http://purl.org/dc/elements/1.1}type"], "text")),
