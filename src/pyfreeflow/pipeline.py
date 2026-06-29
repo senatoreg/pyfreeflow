@@ -43,8 +43,9 @@ class Pipeline():
         self._G = None
         self._tree = None
 
-    async def init(self, node, digraph, last=None, name="stream"):
+    async def init(self, node, digraph, concurrency=8, last=None, name="stream"):
         self._name = name
+        self._concurrency = concurrency
         self._last = last
 
         self._logger = logging.getLogger(".".join([__name__, "Pipeline",
@@ -114,9 +115,21 @@ class Pipeline():
             pending = len(self._tree)
             task = {}
 
+            cur = self._concurrency
+            aws = []
+
             while pending > 0:
                 nodes = [k for k, v in degrees.items() if v == 0]
                 for n in nodes:
+                    self._logger.debug("Pipeline concurrency is {} nodes".format(cur))
+                    if cur == 0:
+                        self._logger.debug("Pipeline is waiting for fisrt node completed")
+                        done, running = await asyncio.wait(
+                            aws, return_when=asyncio.FIRST_COMPLETED)
+                        aws = list(running)
+                        cur += len(done)
+                        self._logger.debug("Pipeline completed nodes {}".format(cur))
+
                     _prev = list(self._G.predecessors(n))
                     if len(_prev) > 1:
                         _data = [self._data.get(x) for x in _prev]
@@ -128,10 +141,14 @@ class Pipeline():
                     task[n] = loop.create_task(self._task(n, _data),
                                                name=n)
                     degrees[n] -= 1
+                    aws.append(task[n])
+                    cur -= 1
 
                 async with self._cond:
                     await self._cond.wait()
 
+                cur = self._concurrency
+                aws.clear()
                 nodes.clear()
                 for tname, t in {k: v for k, v in task.items() if v.done()}.items():
                     degrees[tname] -= 1
