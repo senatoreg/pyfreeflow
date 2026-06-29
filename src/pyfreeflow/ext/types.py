@@ -43,6 +43,7 @@ class FreeFlowExt(metaclass=ExtRegister):
                         _data.append(t)
 
                 if p[1] == 0:
+                    self._logger.debug("Creating unpack task for " + str(i) + " with data: '" + str(p[0]) + "'")
                     aws.append(loop.create_task(
                         self.do(state, p[0]),
                         name=self._name + "-unpack-" + str(i)))
@@ -62,6 +63,7 @@ class FreeFlowExt(metaclass=ExtRegister):
             return state, _data
         else:
             # param0 or param1 or ...
+            self._logger.debug("Executing task for data: '" + str(data[0]) + "'")
             if data[1] == 0:
                 return await self.do(state, data[0])
             return state, data
